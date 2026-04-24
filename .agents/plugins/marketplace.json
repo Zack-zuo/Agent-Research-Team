@@ -1,0 +1,11 @@
+{
+  "plugins": [
+    {
+      "name": "research-agent-team",
+      "source": "./plugins/research-agent-team",
+      "type": "local",
+      "auth": "none",
+      "installation": "repo-relative"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+.venv/
+.worktrees/
+worktrees/
+/docs/
+dist/

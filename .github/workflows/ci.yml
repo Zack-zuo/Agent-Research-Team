@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - phase1-monorepo-backfill
+  pull_request:
+
+jobs:
+  monorepo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run root unit tests
+        run: python -m unittest discover -s tests/unit -p 'test_*.py' -v
+
+      - name: Validate plugin release boundary
+        run: bash scripts/validate-release-boundary.sh
