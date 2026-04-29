@@ -1,1 +1,14 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/activation-callbacks.schema.json",
+  "title": "ActivationCallbackCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "activation_id"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "activation_id": {"type": "string"},
+    "runtime_pid": {"type": "integer"},
+    "payload": {"type": "object"}
+  }
+}

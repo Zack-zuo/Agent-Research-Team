@@ -1,1 +1,15 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/project.schema.json",
+  "title": "ResearchProject",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["project_id", "name", "schema_version", "status", "operating_mode"],
+  "properties": {
+    "project_id": {"type": "string"},
+    "name": {"type": "string"},
+    "schema_version": {"type": "string"},
+    "status": {"type": "string"},
+    "operating_mode": {"type": "string"}
+  }
+}

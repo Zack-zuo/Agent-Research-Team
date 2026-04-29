@@ -1,1 +1,12 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/experiment.schema.json",
+  "title": "ExperimentState",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "experiment_request_id": {"type": "string"},
+    "experiment_run_id": {"type": "string"},
+    "status": {"type": "string"}
+  }
+}

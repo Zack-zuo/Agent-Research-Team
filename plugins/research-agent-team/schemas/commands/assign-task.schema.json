@@ -1,1 +1,20 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/assign-task.schema.json",
+  "title": "AssignTaskCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "requester_slot_id", "owner_slot_id", "title", "description"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "requester_slot_id": {"type": "string"},
+    "owner_slot_id": {"type": "string"},
+    "title": {"type": "string"},
+    "description": {"type": "string"},
+    "success_criteria": {"type": "array", "items": {"type": "string"}},
+    "input_artifact_ids": {"type": "array", "items": {"type": "string"}},
+    "input_path_roots": {"type": "array", "items": {"type": "string"}},
+    "expected_output_types": {"type": "array", "items": {"type": "string"}},
+    "budget_override": {"type": "object"}
+  }
+}

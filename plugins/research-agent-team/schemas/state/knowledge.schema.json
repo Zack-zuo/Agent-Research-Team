@@ -1,1 +1,12 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/knowledge.schema.json",
+  "title": "KnowledgeState",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "scope_type": {"type": "string"},
+    "scope_id": {"type": ["string", "null"]},
+    "graph_dirty": {"type": "boolean"}
+  }
+}

@@ -22,5 +22,11 @@ jobs:
       - name: Run root unit tests
         run: python -m unittest discover -s tests/unit -p 'test_*.py' -v
 
+      - name: Run plugin tests
+        run: python -m unittest discover -s tests/plugin -p 'test_*.py' -v
+
       - name: Validate plugin release boundary
         run: bash scripts/validate-release-boundary.sh
+
+      - name: Smoke test plugin CLI
+        run: bash scripts/smoke-test-plugin.sh

@@ -1,1 +1,13 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/create-project.schema.json",
+  "title": "CreateProjectCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "root_path"],
+  "properties": {
+    "name": {"type": "string"},
+    "root_path": {"type": "string"},
+    "initial_charter_text": {"type": "string"}
+  }
+}

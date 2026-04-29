@@ -12,6 +12,9 @@ dependencies = [
   "PyYAML>=6,<7",
 ]
 
+[project.scripts]
+research-agent-team-codex = "research_agent_team.platform.codex.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["research_agent_team*"]

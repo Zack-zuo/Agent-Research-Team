@@ -1,1 +1,14 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/artifact.schema.json",
+  "title": "ArtifactRecord",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["artifact_id", "path", "visibility"],
+  "properties": {
+    "artifact_id": {"type": "string"},
+    "path": {"type": "string"},
+    "visibility": {"type": "string"},
+    "producer_slot_id": {"type": "string"}
+  }
+}

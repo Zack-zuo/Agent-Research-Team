@@ -1,1 +1,14 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/approval.schema.json",
+  "title": "ApprovalCheckpoint",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["approval_id", "status", "scope_type"],
+  "properties": {
+    "approval_id": {"type": "string"},
+    "status": {"type": "string"},
+    "scope_type": {"type": "string"},
+    "decision_summary": {"type": "string"}
+  }
+}

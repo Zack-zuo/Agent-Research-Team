@@ -1,1 +1,12 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/adapters/experiment-adapter.schema.json",
+  "title": "ExperimentAdapterConfig",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "adapter_id": {"type": "string"},
+    "enabled": {"type": "boolean"},
+    "settings": {"type": "object"}
+  }
+}

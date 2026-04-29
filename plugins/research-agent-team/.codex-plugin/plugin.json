@@ -1,1 +1,31 @@
-
+{
+  "name": "research-agent-team",
+  "version": "0.1.0",
+  "description": "Installable Codex plugin for supervising local ResearchAgentTeam projects.",
+  "license": "UNLICENSED",
+  "keywords": [
+    "research",
+    "codex",
+    "multi-agent",
+    "local-first",
+    "experiments"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ResearchAgentTeam",
+    "shortDescription": "Persistent research team control plane for Codex.",
+    "longDescription": "Supervise local computational research projects with persistent supervisor, senior, and junior slots backed by a filesystem-first control plane.",
+    "developerName": "ResearchAgentTeam maintainers",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Create a ResearchAgentTeam project.",
+      "Open my research team status.",
+      "Assign this research task to a slot."
+    ],
+    "brandColor": "#1F6F5B"
+  }
+}
