@@ -70,11 +70,11 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
         self.assertIn("assign_task", command_help.stdout)
         self.assertIn("rebuild_graph", command_help.stdout)
 
-        known = self.run_plugin_script("command", "create_project", "--payload-json", "{}", check=False)
+        known = self.run_plugin_script("command", "assign_task", "--payload-json", "{}", check=False)
         self.assertEqual(known.returncode, 1)
         payload = json.loads(known.stdout)
         self.assertEqual(payload["error"]["code"], "not_implemented")
-        self.assertEqual(payload["error"]["command"], "create_project")
+        self.assertEqual(payload["error"]["command"], "assign_task")
 
         unknown = self.run_plugin_script("command", "not_a_command", "--payload-json", "{}", check=False)
         self.assertNotEqual(unknown.returncode, 0)

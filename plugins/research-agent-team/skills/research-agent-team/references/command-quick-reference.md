@@ -1,9 +1,9 @@
 # Command Quick Reference
 
-Stage 0 defines command names so CLI, schemas, documentation, and future MCP
-tools agree on the public surface.
+The CLI, schemas, documentation, and future MCP tools share this public command
+surface.
 
-Project lifecycle:
+Implemented project lifecycle:
 
 - `create_project`
 - `open_project`
@@ -11,7 +11,7 @@ Project lifecycle:
 - `pause_project`
 - `resume_project`
 
-Topology:
+Implemented topology:
 
 - `show_team_topology`
 - `add_senior`
@@ -19,7 +19,7 @@ Topology:
 - `retire_senior`
 - `retire_junior`
 
-Tasking, governance, knowledge, and experiments:
+Reserved for later roadmap stages:
 
 - `assign_task`
 - `approve_checkpoint`

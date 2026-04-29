@@ -1,26 +1,32 @@
 # ResearchAgentTeam Plugin
 
-ResearchAgentTeam is a Codex-first plugin skeleton for local, filesystem-first
-research orchestration. The main Codex session acts as the supervisor, while
-future senior and junior worker activations will be launched through command
-responses and persisted project state.
+ResearchAgentTeam is a Codex-first plugin for local, filesystem-first research
+orchestration. The main Codex session acts as the supervisor, while senior and
+junior slots are persisted in project state and later activated through command
+responses.
 
 This package is the installable plugin boundary. Repository docs, tests, CI,
 and release tooling remain outside this directory.
 
-## Stage 0 Surface
+## Implemented Surface
 
-The Stage 0 package provides:
+The package provides:
 
 - plugin metadata in `.codex-plugin/plugin.json`
 - supervisor and worker prompt assets under `prompts/`
 - the ResearchAgentTeam Codex skill under `skills/`
-- baseline command names exposed by `scripts/rat_plugin_cli.py`
-- JSON Schema placeholders with valid metadata under `schemas/`
-- hook and MCP descriptors that are intentionally inert for Stage 0
+- project lifecycle commands for `create_project`, `open_project`, mode
+  switching, pause, and resume
+- topology commands for supervisor, senior, and junior slot inspection and
+  staffing mutations
+- deterministic domain, storage, config, and shared helpers for the project
+  filesystem contract
+- JSON Schema coverage for command, state, event, adapter, and manifest shapes
+- hook and MCP descriptors; MCP registration remains optional and inert until a
+  later roadmap stage
 
-Project lifecycle, storage, topology, task admission, activation runtime, and
-adapter behavior are implemented in later roadmap stages.
+Task admission, activation runtime, governance, knowledge, graph, experiment,
+and reporting behavior are implemented in later roadmap stages.
 
 ## Local Checks
 

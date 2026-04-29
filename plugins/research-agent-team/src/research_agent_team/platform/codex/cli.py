@@ -5,7 +5,7 @@ import json
 import select
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional, Tuple, Type
 
 from research_agent_team.contracts.commands import ACTIVATION_COMMAND_NAMES, COMMAND_NAMES
 
@@ -53,10 +53,69 @@ def _not_implemented(kind: str, name: str, payload: dict[str, Any]) -> dict[str,
     }
 
 
+def _ok(result: dict[str, Any]) -> dict[str, Any]:
+    return {"ok": True, "result": result}
+
+
+def _error(error: Any) -> dict[str, Any]:
+    return {"ok": False, "error": error.to_dict()}
+
+
+def _load_command_handler(
+    command_name: str,
+) -> Tuple[Optional[Callable[[dict[str, Any]], dict[str, Any]]], Optional[Type[Exception]]]:
+    if command_name in {"create_project", "open_project", "switch_operating_mode", "pause_project", "resume_project"}:
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.project_service import (
+            create_project,
+            open_project,
+            pause_project,
+            resume_project,
+            switch_operating_mode,
+        )
+
+        return {
+            "create_project": create_project,
+            "open_project": open_project,
+            "switch_operating_mode": switch_operating_mode,
+            "pause_project": pause_project,
+            "resume_project": resume_project,
+        }[command_name], CommandError
+
+    if command_name in {"show_team_topology", "add_senior", "add_junior", "retire_senior", "retire_junior"}:
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.topology_service import (
+            add_junior,
+            add_senior,
+            retire_junior,
+            retire_senior,
+            show_team_topology,
+        )
+
+        return {
+            "show_team_topology": show_team_topology,
+            "add_senior": add_senior,
+            "add_junior": add_junior,
+            "retire_senior": retire_senior,
+            "retire_junior": retire_junior,
+        }[command_name], CommandError
+
+    return None, None
+
+
 def run_command(args: argparse.Namespace) -> int:
     payload = _load_payload(args)
-    _dump_json(_not_implemented("command", args.command_name, payload))
-    return 1
+    handler, command_error = _load_command_handler(args.command_name)
+    if handler is None:
+        _dump_json(_not_implemented("command", args.command_name, payload))
+        return 1
+    assert command_error is not None
+    try:
+        _dump_json(_ok(handler(payload)))
+        return 0
+    except command_error as exc:
+        _dump_json(_error(exc))
+        return 1
 
 
 def run_activation(args: argparse.Namespace) -> int:

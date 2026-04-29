@@ -19,11 +19,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run root unit tests
-        run: python -m unittest discover -s tests/unit -p 'test_*.py' -v
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-      - name: Run plugin tests
-        run: python -m unittest discover -s tests/plugin -p 'test_*.py' -v
+      - name: Install workspace dependencies
+        run: uv sync --group dev
+
+      - name: Run test suite
+        run: uv run pytest
 
       - name: Validate plugin release boundary
         run: bash scripts/validate-release-boundary.sh

@@ -1,13 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://research-agent-team.local/schemas/state/topology.schema.json",
-  "title": "TopologySnapshot",
+  "title": "TeamTopology",
   "type": "object",
   "additionalProperties": true,
-  "required": ["generation", "root_slot_id", "slots"],
+  "required": [
+    "project_id",
+    "generation",
+    "supervisor_slot_id",
+    "parent_by_slot_id",
+    "children_by_slot_id",
+    "active_slot_ids",
+    "retired_slot_ids",
+    "updated_at"
+  ],
   "properties": {
+    "project_id": {"type": "string"},
     "generation": {"type": "integer", "minimum": 0},
+    "supervisor_slot_id": {"type": "string"},
     "root_slot_id": {"type": "string"},
-    "slots": {"type": "array", "items": {"type": "string"}}
+    "parent_by_slot_id": {"type": "object"},
+    "children_by_slot_id": {"type": "object"},
+    "active_slot_ids": {"type": "array", "items": {"type": "string"}},
+    "retired_slot_ids": {"type": "array", "items": {"type": "string"}},
+    "slots": {"type": "array", "items": {"type": "string"}},
+    "updated_at": {"type": "string"}
   }
 }

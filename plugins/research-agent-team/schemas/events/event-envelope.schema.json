@@ -4,11 +4,16 @@
   "title": "EventEnvelope",
   "type": "object",
   "additionalProperties": true,
-  "required": ["event_id", "event_type", "created_at"],
+  "required": ["event_id", "event_type", "created_at", "project_id"],
   "properties": {
     "event_id": {"type": "string"},
     "event_type": {"type": "string"},
     "created_at": {"type": "string"},
+    "project_id": {"type": ["string", "null"]},
+    "slot_id": {"type": ["string", "null"]},
+    "task_id": {"type": ["string", "null"]},
+    "activation_id": {"type": ["string", "null"]},
+    "approval_id": {"type": ["string", "null"]},
     "payload": {"type": "object"}
   }
 }

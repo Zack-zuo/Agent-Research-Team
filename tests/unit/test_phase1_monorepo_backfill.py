@@ -46,6 +46,14 @@ class Phase1MonorepoBackfillTests(unittest.TestCase):
             self.assertTrue(path.exists(), relative_path)
             self.assertGreater(path.stat().st_size, 80, relative_path)
 
+    def test_ci_runs_full_pytest_suite_with_workspace_dependencies(self) -> None:
+        workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+
+        self.assertIn("uv run pytest", workflow_text)
+        self.assertNotIn("unittest discover -s tests/unit", workflow_text)
+        self.assertNotIn("unittest discover -s tests/plugin", workflow_text)
+
     def test_phase1_tests_are_monorepo_aware(self) -> None:
         for relative_path in [
             "tests/plugin/test_plugin_manifest.py",

@@ -5,8 +5,11 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "limits": {"type": "object"},
-    "consumption": {"type": "object"},
-    "thresholds": {"type": "object"}
+    "project_limits": {"type": "object"},
+    "role_limits": {"type": "object"},
+    "task_overrides": {"type": "object"},
+    "consumed_to_date": {"type": "object"},
+    "thresholds": {"type": "object"},
+    "last_recomputed_at": {"type": ["string", "null"]}
   }
 }

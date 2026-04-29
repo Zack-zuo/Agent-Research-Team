@@ -4,11 +4,15 @@
   "title": "Slot",
   "type": "object",
   "additionalProperties": true,
-  "required": ["slot_id", "role", "status"],
+  "required": ["slot_id", "role", "status", "parent_slot_id"],
   "properties": {
     "slot_id": {"type": "string"},
     "role": {"type": "string"},
     "status": {"type": "string"},
-    "parent_slot_id": {"type": ["string", "null"]}
+    "parent_slot_id": {"type": ["string", "null"]},
+    "workspace_root": {"type": "string"},
+    "kb_root": {"type": "string"},
+    "inbox_root": {"type": "string"},
+    "outbox_root": {"type": "string"}
   }
 }

@@ -1,6 +1,8 @@
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -44,6 +46,39 @@ class RatPluginCliTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertNotEqual(result.returncode, 0)
+
+    def test_help_and_reserved_commands_do_not_import_runtime_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            poison_dir = Path(tmpdir)
+            (poison_dir / "yaml.py").write_text(
+                "raise RuntimeError('yaml import should be lazy for source CLI help')\n",
+                encoding="utf-8",
+            )
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(poison_dir)
+
+            help_result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--help"],
+                cwd=PLUGIN_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(help_result.returncode, 0, help_result.stderr)
+            self.assertIn("usage:", help_result.stdout)
+
+            reserved_result = subprocess.run(
+                [sys.executable, str(SCRIPT), "command", "assign_task", "--payload-json", json.dumps({})],
+                cwd=PLUGIN_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(reserved_result.returncode, 1)
+            payload = json.loads(reserved_result.stdout)
+            self.assertEqual(payload["error"]["code"], "not_implemented")
+            self.assertEqual(payload["error"]["command"], "assign_task")
+            self.assertNotIn("yaml import should be lazy", reserved_result.stderr)
 
 
 if __name__ == "__main__":
