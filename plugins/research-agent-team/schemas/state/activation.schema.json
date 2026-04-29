@@ -1,1 +1,14 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/activation.schema.json",
+  "title": "AgentActivation",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["activation_id", "task_id", "slot_id", "status"],
+  "properties": {
+    "activation_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "slot_id": {"type": "string"},
+    "status": {"type": "string"}
+  }
+}

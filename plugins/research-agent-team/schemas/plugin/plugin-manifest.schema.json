@@ -1,1 +1,31 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/plugin/plugin-manifest.schema.json",
+  "title": "ResearchAgentTeamPluginManifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "version", "description", "license", "skills", "interface"],
+  "properties": {
+    "name": {"const": "research-agent-team"},
+    "version": {"type": "string"},
+    "description": {"type": "string"},
+    "license": {"type": "string"},
+    "keywords": {"type": "array", "items": {"type": "string"}},
+    "skills": {"type": "string", "pattern": "^\\./skills/?$"},
+    "interface": {
+      "type": "object",
+      "required": ["displayName", "shortDescription", "longDescription", "developerName", "category"],
+      "additionalProperties": true,
+      "properties": {
+        "displayName": {"const": "ResearchAgentTeam"},
+        "shortDescription": {"type": "string"},
+        "longDescription": {"type": "string"},
+        "developerName": {"type": "string"},
+        "category": {"type": "string"},
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "defaultPrompt": {"type": "array", "items": {"type": "string"}},
+        "brandColor": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,1 +1,1 @@
-
+"""Platform-specific plugin adapters."""

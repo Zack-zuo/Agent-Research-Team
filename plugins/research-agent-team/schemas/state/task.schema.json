@@ -1,1 +1,14 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/task.schema.json",
+  "title": "Task",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["task_id", "owner_slot_id", "status", "title"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "owner_slot_id": {"type": "string"},
+    "status": {"type": "string"},
+    "title": {"type": "string"}
+  }
+}

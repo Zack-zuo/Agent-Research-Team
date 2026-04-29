@@ -1,1 +1,12 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/budget.schema.json",
+  "title": "BudgetState",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "limits": {"type": "object"},
+    "consumption": {"type": "object"},
+    "thresholds": {"type": "object"}
+  }
+}

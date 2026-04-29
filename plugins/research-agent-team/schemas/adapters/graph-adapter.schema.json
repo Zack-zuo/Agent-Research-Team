@@ -1,1 +1,12 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/adapters/graph-adapter.schema.json",
+  "title": "GraphAdapterConfig",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "adapter_id": {"type": "string"},
+    "enabled": {"type": "boolean"},
+    "settings": {"type": "object"}
+  }
+}

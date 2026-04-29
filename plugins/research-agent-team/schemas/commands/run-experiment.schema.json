@@ -1,1 +1,19 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/run-experiment.schema.json",
+  "title": "RunExperimentCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "requester_slot_id", "title", "objective", "method"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "requester_slot_id": {"type": "string"},
+    "executor_slot_id": {"type": "string"},
+    "title": {"type": "string"},
+    "objective": {"type": "string"},
+    "hypothesis": {"type": "string"},
+    "method": {"type": "string"},
+    "success_criteria": {"type": "array", "items": {"type": "string"}},
+    "run_parameters": {"type": "object"}
+  }
+}

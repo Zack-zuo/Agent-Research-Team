@@ -1,1 +1,13 @@
-
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/state/topology.schema.json",
+  "title": "TopologySnapshot",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["generation", "root_slot_id", "slots"],
+  "properties": {
+    "generation": {"type": "integer", "minimum": 0},
+    "root_slot_id": {"type": "string"},
+    "slots": {"type": "array", "items": {"type": "string"}}
+  }
+}
