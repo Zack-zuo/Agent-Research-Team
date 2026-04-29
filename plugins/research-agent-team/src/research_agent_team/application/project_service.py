@@ -236,6 +236,8 @@ def create_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(initial_charter_text, str):
         raise CommandError("invalid_payload", "initial_charter_text must be a string", field="initial_charter_text")
 
+    if layout.root.exists() and not layout.root.is_dir():
+        raise CommandError("invalid_root_path", "create_project root_path must be a directory", root_path=str(layout.root))
     if layout.root.exists() and any(layout.root.iterdir()):
         raise CommandError("target_not_empty", "create_project requires an empty or missing root_path", root_path=str(layout.root))
 

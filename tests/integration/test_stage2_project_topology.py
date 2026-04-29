@@ -119,6 +119,25 @@ class Stage2ProjectTopologyTests(unittest.TestCase):
             created = self.create_project(project_root)
             self.assertEqual(created["project"]["name"], "Topology Demo")
 
+    def test_existing_file_root_path_returns_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "not-a-directory"
+            project_root.write_text("already a file\n", encoding="utf-8")
+
+            result = self.run_cli(
+                "create_project",
+                {
+                    "name": "Bad Root",
+                    "root_path": str(project_root),
+                },
+                check=False,
+            )
+
+            payload = self.parse_json(result)
+            self.assertFalse(payload["ok"], payload)
+            self.assertEqual(payload["error"]["code"], "invalid_root_path")
+            self.assertEqual(result.stderr, "")
+
     def test_topology_mutations_preserve_surviving_state_and_reject_invalid_retirement(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir) / "rat-project"
@@ -199,6 +218,41 @@ class Stage2ProjectTopologyTests(unittest.TestCase):
             )
             self.assertFalse(bad_retire["ok"], bad_retire)
             self.assertEqual(bad_retire["error"]["code"], "invalid_slot_role")
+
+    def test_default_staffing_policy_caps_seniors_at_three(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            second = self.parse_json(self.run_cli("add_senior", {"root_path": str(project_root)}))
+            self.assertTrue(second["ok"], second)
+            self.assertEqual(second["result"]["slot"]["slot_id"], "senior-02")
+
+            third = self.parse_json(self.run_cli("add_senior", {"root_path": str(project_root)}))
+            self.assertTrue(third["ok"], third)
+            self.assertEqual(third["result"]["slot"]["slot_id"], "senior-03")
+
+            rejected = self.parse_json(self.run_cli("add_senior", {"root_path": str(project_root)}, check=False))
+            self.assertFalse(rejected["ok"], rejected)
+            self.assertEqual(rejected["error"]["code"], "staffing_cap_exceeded")
+
+    def test_default_staffing_policy_caps_juniors_per_senior_at_three(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            for expected_slot_id in ["junior-01", "junior-02", "junior-03"]:
+                added = self.parse_json(
+                    self.run_cli("add_junior", {"root_path": str(project_root), "parent_slot_id": "senior-01"})
+                )
+                self.assertTrue(added["ok"], added)
+                self.assertEqual(added["result"]["slot"]["slot_id"], expected_slot_id)
+
+            rejected = self.parse_json(
+                self.run_cli("add_junior", {"root_path": str(project_root), "parent_slot_id": "senior-01"}, check=False)
+            )
+            self.assertFalse(rejected["ok"], rejected)
+            self.assertEqual(rejected["error"]["code"], "staffing_cap_exceeded")
 
 
 if __name__ == "__main__":

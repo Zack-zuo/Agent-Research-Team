@@ -6,8 +6,8 @@ from typing import Any, Dict
 def default_policy_files() -> Dict[str, Dict[str, Any]]:
     return {
         "staffing.json": {
-            "max_active_seniors": 4,
-            "max_active_juniors_per_senior": 4,
+            "max_active_seniors": 3,
+            "max_active_juniors_per_senior": 3,
             "require_staffing_approval": False,
         },
         "execution.json": {

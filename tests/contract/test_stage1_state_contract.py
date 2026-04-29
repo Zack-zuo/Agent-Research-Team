@@ -85,8 +85,8 @@ class Stage1StateContractTests(unittest.TestCase):
         policies = default_policy_files()
 
         self.assertIn("staffing.json", policies)
-        self.assertGreaterEqual(policies["staffing.json"]["max_active_seniors"], 1)
-        self.assertGreaterEqual(policies["staffing.json"]["max_active_juniors_per_senior"], 1)
+        self.assertEqual(policies["staffing.json"]["max_active_seniors"], 3)
+        self.assertEqual(policies["staffing.json"]["max_active_juniors_per_senior"], 3)
         self.assertIn("project_limits", default_budget_state())
         self.assertEqual(default_adapter_config()["graph"]["mode"], "degraded")
 
