@@ -1,0 +1,28 @@
+[project]
+name = "research-agent-team-monorepo"
+version = "0.1.0"
+description = "Development workspace for the ResearchAgentTeam Codex plugin."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "research-agent-team",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8,<9",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+research-agent-team = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+  "plugins/research-agent-team",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
