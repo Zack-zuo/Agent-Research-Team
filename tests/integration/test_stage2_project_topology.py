@@ -83,7 +83,7 @@ class Stage2ProjectTopologyTests(unittest.TestCase):
             self.assertTrue(opened["ok"], opened)
             self.assertEqual(opened["result"]["project"]["name"], "Topology Demo")
             self.assertEqual(opened["result"]["topology"]["slot_count"], 2)
-            self.assertEqual(opened["result"]["adapter_health"]["graph"]["status"], "degraded")
+            self.assertEqual(opened["result"]["adapter_health"]["graph"]["status"], "healthy")
             self.assertEqual(opened["result"]["pending_approval_count"], 0)
 
     def test_missing_project_open_does_not_create_lock_and_later_create_succeeds(self) -> None:

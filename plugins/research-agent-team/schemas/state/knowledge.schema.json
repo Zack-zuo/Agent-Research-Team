@@ -4,9 +4,28 @@
   "title": "KnowledgeState",
   "type": "object",
   "additionalProperties": true,
+  "required": ["scope_type", "scope_id", "source_hashes", "compiled_artifact_ids_by_output_path", "backlinks", "graph_dirty"],
   "properties": {
-    "scope_type": {"type": "string"},
+    "scope_type": {"type": "string", "enum": ["project", "slot"]},
     "scope_id": {"type": ["string", "null"]},
+    "source_hashes": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "compiled_artifact_ids_by_output_path": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "backlinks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "last_attempted_at": {"type": ["string", "null"]},
+    "last_synced_at": {"type": ["string", "null"]},
+    "last_error": {"type": ["string", "null"]},
     "graph_dirty": {"type": "boolean"}
   }
 }

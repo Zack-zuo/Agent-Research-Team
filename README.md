@@ -2,7 +2,7 @@
 
 [中文说明](./README.zh-CN.md)
 
-ResearchAgentTeam helps researchers run long-lived computational projects with a persistent research team structure instead of starting from scratch in every chat. It keeps project memory, task flow, reports, knowledge outputs, and experiment results on disk so work can build over time.
+ResearchAgentTeam helps researchers run long-lived computational projects with a persistent research team structure instead of starting from scratch in every chat. It keeps project memory, task flow, reports, and knowledge outputs on disk so work can build over time.
 
 ## Project Introduction
 
@@ -11,7 +11,7 @@ Research projects rarely fit into one disposable session. They usually need:
 - persistent roles and shared context
 - a clear way to assign and review work
 - reusable knowledge instead of repeated summarization
-- durable experiment outputs and reports
+- durable reports and reusable project knowledge
 
 ResearchAgentTeam is built for that style of work. It organizes a project around a stable team with:
 
@@ -29,7 +29,7 @@ ResearchAgentTeam is designed to be useful in day-to-day research work:
 - Filesystem-first outputs: reports, notes, experiment artifacts, and shared materials stay on disk where they can be reviewed directly.
 - Clear task flow: work is assigned explicitly, reviewed explicitly, and tracked as part of the project.
 - Knowledge accumulation: raw materials can be turned into reusable wiki-style knowledge outputs.
-- Experiment support: experiment requests, outputs, and follow-up work stay connected instead of being scattered across chats.
+- Experiment support: experiment requests, outputs, and follow-up work are planned for the next roadmap stage.
 - Better visibility: status reports and final reports make it easier to see what has happened and what should happen next.
 
 ## What You Can Do
@@ -41,7 +41,6 @@ With the current product, you can:
 - assign research or coding tasks
 - sync knowledge into shared outputs
 - rebuild graph-style project views
-- run experiments and review results
 - generate status reports and final report packages
 
 When a project is created, it produces a local project workspace such as:
@@ -61,7 +60,7 @@ Common user-facing outputs include:
 - `shared/reports/final-package-latest.md`: latest final report package
 - `shared/wiki/`: compiled knowledge pages
 - `shared/graph/`: graph outputs and summaries
-- `experiments/runs/`: saved experiment outputs
+- `experiments/runs/`: reserved for saved experiment outputs in the experiment stage
 
 ## Getting Started
 
@@ -114,7 +113,7 @@ research-agent-team-codex command open_project --payload-file payload.json
 printf '{"root_path":"/absolute/path/to/my-research-project"}' | research-agent-team-codex command open_project
 ```
 
-Commands that admit work, such as `assign_task` and `run_experiment`, may return a non-null `launch_request`. Codex should render that launch request into a worker prompt and launch a subagent:
+Commands that admit work, such as `assign_task`, may return a non-null `launch_request`. Codex should render that launch request into a worker prompt and launch a subagent:
 
 ```bash
 research-agent-team-codex render-launch-prompt --root-path "/absolute/path/to/my-research-project" --payload-file launch-request.json
@@ -217,41 +216,7 @@ rebuild_graph_command(
 
 #### Run and review an experiment
 
-```python
-from research_agent_team.plugin_adapter.commands import (
-    review_experiment_command,
-    run_experiment_command,
-)
-
-run_result = run_experiment_command(
-    {
-        "root_path": project_root,
-        "requester_slot_id": "senior-01",
-        "executor_slot_id": "junior-01",
-        "title": "Evaluate baseline prompt",
-        "objective": "Measure the baseline prompt on a fixture task.",
-        "hypothesis": "The baseline produces a valid structured result.",
-        "method": "Run the experiment once and publish outputs.",
-        "success_criteria": ["Produce a published experiment result"],
-        "input_artifact_ids": [],
-        "input_path_roots": ["shared/reports"],
-        "expected_output_types": ["json", "markdown"],
-        "run_parameters": {"prompt_variant": "baseline"},
-        "compare_run_ids": [],
-        "budget_override": {},
-    }
-)
-
-review_experiment_command(
-    {
-        "root_path": project_root,
-        "experiment_run_id": run_result["experiment_run"]["experiment_run_id"],
-        "reviewer_slot_id": "senior-01",
-        "outcome": "accepted",
-        "decision_summary": "The baseline is good enough for the next iteration.",
-    }
-)
-```
+Experiment commands are reserved for the next roadmap stage.
 
 #### Generate status and final reports
 
@@ -281,7 +246,6 @@ The current commands cover these user workflows:
 - add and retire team roles
 - assign work and review progress
 - sync knowledge and rebuild graph outputs
-- run experiments and review experiment results
 - generate status reports and final packages
 
 ## Current Availability

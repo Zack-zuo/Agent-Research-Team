@@ -1,5 +1,11 @@
 # Changelog
 
+## M6 - Stage 5
+
+- implemented knowledge sync for slot-local and project scopes, including Markdown wiki compilation, raw source ingestion, artifact indexing, source hashes, backlinks, and graph-dirty state
+- exposed `sync_knowledge_base` and `rebuild_graph` through the Codex-facing CLI with command schemas and validation
+- added the local-file graph adapter, durable graph exports and reports under `shared/graph/`, adapter health updates, degraded graph handling, and literature/final-package report integration
+
 ## M5 - Stage 4
 
 - implemented governance services for artifact indexing, visibility enforcement, permission manifests, approval replay, status reporting, report generation, and derived slot inbox/outbox views

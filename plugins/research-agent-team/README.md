@@ -27,14 +27,15 @@ The package provides:
   requesting status, and generating reports
 - artifact indexing, visibility enforcement, activation permission manifests,
   budget warnings, durable report artifacts, and derived slot inbox/outbox views
+- Stage 5 knowledge commands for syncing slot/project wiki outputs and
+  rebuilding local-file graph exports under `shared/graph/`
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
 - hook and MCP descriptors; MCP registration remains optional and inert until a
   later roadmap stage
 
-Knowledge, graph, and experiment behavior are implemented in later roadmap
-stages.
+Experiment behavior is implemented in a later roadmap stage.
 
 ## Local Checks
 

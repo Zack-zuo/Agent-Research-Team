@@ -124,6 +124,18 @@ def _load_command_handler(
             "generate_report": generate_report,
         }[command_name], CommandError
 
+    if command_name == "sync_knowledge_base":
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.knowledge_service import sync_knowledge_base
+
+        return sync_knowledge_base, CommandError
+
+    if command_name == "rebuild_graph":
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.graph_service import rebuild_graph
+
+        return rebuild_graph, CommandError
+
     return None, None
 
 

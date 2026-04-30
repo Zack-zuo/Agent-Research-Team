@@ -88,7 +88,7 @@ class Stage1StateContractTests(unittest.TestCase):
         self.assertEqual(policies["staffing.json"]["max_active_seniors"], 3)
         self.assertEqual(policies["staffing.json"]["max_active_juniors_per_senior"], 3)
         self.assertIn("project_limits", default_budget_state())
-        self.assertEqual(default_adapter_config()["graph"]["mode"], "degraded")
+        self.assertEqual(default_adapter_config()["graph"]["mode"], "local")
 
         schema_expectations = {
             "state/project.schema.json": {"project_id", "name", "schema_version", "status", "operating_mode"},

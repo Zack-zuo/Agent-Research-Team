@@ -335,6 +335,54 @@ def _render_unimplemented_stage_report(report_type: str, scope_type: str, scope_
     )
 
 
+def _project_wiki_artifacts(layout: ProjectLayout) -> List[Dict[str, Any]]:
+    knowledge_state_path = layout.state_dir / "knowledge" / "project.json"
+    if not knowledge_state_path.exists():
+        return []
+    current_paths = set((read_json(knowledge_state_path).get("compiled_artifact_ids_by_output_path") or {}).keys())
+    by_path: Dict[str, Dict[str, Any]] = {}
+    for artifact in list_artifacts(layout):
+        path = artifact.get("path")
+        if (
+            isinstance(path, str)
+            and path.startswith("shared/wiki/")
+            and path in current_paths
+            and artifact.get("visibility") == ArtifactVisibility.PROJECT_SHARED.value
+        ):
+            by_path[path] = artifact
+    return [by_path[path] for path in sorted(by_path)]
+
+
+def _render_literature_review_report(layout: ProjectLayout, scope_type: str, scope_id: Optional[str]) -> tuple[str, List[str]]:
+    artifacts = _project_wiki_artifacts(layout)
+    warnings: List[str] = []
+    lines = [
+        "# Literature Review",
+        "",
+        f"- Scope: {scope_type}",
+        f"- Scope ID: {scope_id or 'project'}",
+        f"- Indexed Source Count: {len(artifacts)}",
+        "",
+        "## Knowledge Sources",
+    ]
+    _render_list(lines, [f"{artifact.get('path')} ({artifact.get('artifact_id')})" for artifact in artifacts])
+    lines.extend(["", "## Source Notes"])
+    if not artifacts:
+        warnings.append("Knowledge sources unavailable")
+        lines.append("- No synced project knowledge is available under `shared/wiki/`.")
+    for artifact in artifacts[:10]:
+        relative_path = artifact.get("path")
+        if not isinstance(relative_path, str):
+            continue
+        path = layout.root / relative_path
+        if not path.exists():
+            warnings.append(f"Knowledge artifact missing on disk: {relative_path}")
+            continue
+        excerpt = path.read_text(encoding="utf-8")[:600].strip().replace("\n", " ")
+        lines.append(f"- {relative_path}: {excerpt or 'empty'}")
+    return "\n".join(lines) + "\n", warnings
+
+
 def _latest_artifact_for_path(layout: ProjectLayout, relative_path: str) -> Optional[Dict[str, Any]]:
     for artifact in reversed(list_artifacts(layout)):
         if artifact.get("path") == relative_path:
@@ -352,6 +400,8 @@ def _render_final_package(layout: ProjectLayout) -> tuple[str, List[str]]:
         ("Next Steps", "shared/reports/next-steps-latest.md"),
         ("Literature Review", "shared/reports/literature-review-latest.md"),
         ("Experiment Summary", "shared/reports/experiment-summary-latest.md"),
+        ("Graph Report", "shared/graph/graph-report-latest.md"),
+        ("Graph Export", "shared/graph/graph-export-latest.json"),
     ]
     lines = [
         "# Final Package",
@@ -466,7 +516,9 @@ def _generate_report_locked(
         content = _render_pending_approvals_report(layout, scope_type, scope_id)
     elif report_type == "next_steps":
         content = _render_next_steps_report(layout, scope_type, scope_id)
-    elif report_type in {"literature_review", "experiment_summary"}:
+    elif report_type == "literature_review":
+        content, warnings = _render_literature_review_report(layout, scope_type, scope_id)
+    elif report_type == "experiment_summary":
         content, warnings = _render_unimplemented_stage_report(report_type, scope_type, scope_id)
     else:
         content, warnings = _render_final_package(layout)

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/sync-knowledge-base.schema.json",
+  "title": "SyncKnowledgeBaseCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "scope_type"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "scope_type": {
+      "type": "string",
+      "enum": ["project", "slot"]
+    },
+    "scope_id": {"type": ["string", "null"]},
+    "mode": {
+      "type": "string",
+      "enum": ["incremental", "full"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope_type": {"const": "slot"}
+        },
+        "required": ["scope_type"]
+      },
+      "then": {
+        "required": ["scope_id"],
+        "properties": {
+          "scope_id": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ]
+}

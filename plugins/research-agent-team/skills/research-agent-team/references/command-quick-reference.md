@@ -38,9 +38,12 @@ Implemented governance and reporting:
 - `request_status`
 - `generate_report`
 
-Reserved for later roadmap stages:
+Implemented knowledge and graph workflows:
 
 - `sync_knowledge_base`
 - `rebuild_graph`
+
+Reserved for later roadmap stages:
+
 - `run_experiment`
 - `review_experiment`
