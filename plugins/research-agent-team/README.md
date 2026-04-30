@@ -19,14 +19,20 @@ The package provides:
   switching, pause, and resume
 - topology commands for supervisor, senior, and junior slot inspection and
   staffing mutations
+- task admission through `assign_task`, including queue placement, activation
+  materialization, launch requests, and command-driven advancement
+- activation runtime callbacks for running, heartbeat, checkpoint, completion,
+  failure, interruption, cancellation, and stale recovery on project preflight
+- task-aware budget envelopes, heartbeat consumption, and basic output artifact
+  indexing during activation callbacks
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
 - hook and MCP descriptors; MCP registration remains optional and inert until a
   later roadmap stage
 
-Task admission, activation runtime, governance, knowledge, graph, experiment,
-and reporting behavior are implemented in later roadmap stages.
+Governance, visibility, reporting, knowledge, graph, and experiment behavior are
+implemented in later roadmap stages.
 
 ## Local Checks
 

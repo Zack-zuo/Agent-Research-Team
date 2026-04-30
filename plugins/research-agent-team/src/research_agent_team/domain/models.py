@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from research_agent_team.domain.enums import OperatingMode, ProjectStatus, SlotRole, SlotStatus
+from research_agent_team.domain.enums import ActivationStatus, OperatingMode, ProjectStatus, SlotRole, SlotStatus, TaskStatus
 
 
 def _enum_value(value: Any) -> Any:
@@ -177,6 +177,209 @@ class TeamTopology:
             retired_slot_ids=payload.get("retired_slot_ids", []),
             updated_at=payload["updated_at"],
         )
+
+
+@dataclass
+class Task:
+    task_id: str
+    project_id: str
+    requester_slot_id: str
+    owner_slot_id: str
+    status: TaskStatus
+    title: str
+    description: str
+    success_criteria: List[str]
+    input_artifact_ids: List[str] = field(default_factory=list)
+    input_path_roots: List[str] = field(default_factory=list)
+    expected_output_types: List[str] = field(default_factory=list)
+    budget_envelope: Dict[str, Any] = field(default_factory=dict)
+    review_requirement: str = "none"
+    created_at: str = ""
+    updated_at: str = ""
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    current_activation_id: Optional[str] = None
+    latest_checkpoint_id: Optional[str] = None
+    block_reason: Optional[str] = None
+    approval_policy_ref: Optional[str] = None
+    current_approval_id: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        self.status = _coerce_enum(TaskStatus, self.status)
+        self.success_criteria = _string_list(self.success_criteria)
+        self.input_artifact_ids = _string_list(self.input_artifact_ids)
+        self.input_path_roots = _string_list(self.input_path_roots)
+        self.expected_output_types = _string_list(self.expected_output_types)
+        if not self.task_id.strip():
+            raise ValueError("task_id is required")
+        if not self.title.strip():
+            raise ValueError("task title is required")
+        if self.review_requirement not in {"none", "experiment_review"}:
+            raise ValueError("unsupported review_requirement")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "project_id": self.project_id,
+            "requester_slot_id": self.requester_slot_id,
+            "owner_slot_id": self.owner_slot_id,
+            "status": self.status.value,
+            "title": self.title,
+            "description": self.description,
+            "success_criteria": list(self.success_criteria),
+            "input_artifact_ids": list(self.input_artifact_ids),
+            "input_path_roots": list(self.input_path_roots),
+            "expected_output_types": list(self.expected_output_types),
+            "budget_envelope": dict(self.budget_envelope),
+            "review_requirement": self.review_requirement,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "current_activation_id": self.current_activation_id,
+            "latest_checkpoint_id": self.latest_checkpoint_id,
+            "block_reason": self.block_reason,
+            "approval_policy_ref": self.approval_policy_ref,
+            "current_approval_id": self.current_approval_id,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "Task":
+        return cls(**payload)
+
+
+@dataclass
+class AgentActivation:
+    activation_id: str
+    slot_id: str
+    task_id: str
+    bundle_id: str
+    status: ActivationStatus
+    lease_acquired_at: str
+    lease_heartbeat_at: str
+    lease_timeout_seconds: int
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    runtime_pid: Optional[int] = None
+    input_artifact_ids: List[str] = field(default_factory=list)
+    output_artifact_ids: List[str] = field(default_factory=list)
+    checkpoint_before_id: Optional[str] = None
+    checkpoint_after_id: Optional[str] = None
+    failure_summary: Optional[str] = None
+    consumed_budget: Dict[str, float] = field(default_factory=dict)
+    pending_stop_reason: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        self.status = _coerce_enum(ActivationStatus, self.status)
+        self.input_artifact_ids = _string_list(self.input_artifact_ids)
+        self.output_artifact_ids = _string_list(self.output_artifact_ids)
+        if not self.activation_id.strip():
+            raise ValueError("activation_id is required")
+        if self.lease_timeout_seconds <= 0:
+            raise ValueError("lease_timeout_seconds must be positive")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "activation_id": self.activation_id,
+            "slot_id": self.slot_id,
+            "task_id": self.task_id,
+            "bundle_id": self.bundle_id,
+            "status": self.status.value,
+            "lease_acquired_at": self.lease_acquired_at,
+            "lease_heartbeat_at": self.lease_heartbeat_at,
+            "lease_timeout_seconds": self.lease_timeout_seconds,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "runtime_pid": self.runtime_pid,
+            "input_artifact_ids": list(self.input_artifact_ids),
+            "output_artifact_ids": list(self.output_artifact_ids),
+            "checkpoint_before_id": self.checkpoint_before_id,
+            "checkpoint_after_id": self.checkpoint_after_id,
+            "failure_summary": self.failure_summary,
+            "consumed_budget": dict(self.consumed_budget),
+            "pending_stop_reason": self.pending_stop_reason,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "AgentActivation":
+        return cls(**payload)
+
+
+@dataclass
+class SlotCheckpoint:
+    checkpoint_id: str
+    slot_id: str
+    task_id: str
+    activation_id: str
+    created_at: str
+    summary: str
+    resume_instructions: str
+    output_artifact_ids: List[str] = field(default_factory=list)
+    materialized_path: str = ""
+
+    def __post_init__(self) -> None:
+        self.output_artifact_ids = _string_list(self.output_artifact_ids)
+        if not self.checkpoint_id.strip():
+            raise ValueError("checkpoint_id is required")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "checkpoint_id": self.checkpoint_id,
+            "slot_id": self.slot_id,
+            "task_id": self.task_id,
+            "activation_id": self.activation_id,
+            "created_at": self.created_at,
+            "summary": self.summary,
+            "resume_instructions": self.resume_instructions,
+            "output_artifact_ids": list(self.output_artifact_ids),
+            "materialized_path": self.materialized_path,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "SlotCheckpoint":
+        return cls(**payload)
+
+
+@dataclass
+class TaskBundle:
+    bundle_id: str
+    task_id: str
+    slot_id: str
+    briefing_summary: str
+    success_criteria: List[str]
+    allowed_artifact_ids: List[str]
+    allowed_path_roots: List[str]
+    expected_output_types: List[str]
+    effective_budget_envelope: Dict[str, Any]
+    granted_permissions: List[str]
+    review_gates: List[str]
+    generated_at: str
+    experiment_request_id: Optional[str] = None
+    experiment_run_id: Optional[str] = None
+    compare_run_ids: List[str] = field(default_factory=list)
+    run_parameters: Dict[str, Any] = field(default_factory=dict)
+    resume_checkpoint_id: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "bundle_id": self.bundle_id,
+            "task_id": self.task_id,
+            "slot_id": self.slot_id,
+            "briefing_summary": self.briefing_summary,
+            "success_criteria": list(self.success_criteria),
+            "allowed_artifact_ids": list(self.allowed_artifact_ids),
+            "allowed_path_roots": list(self.allowed_path_roots),
+            "expected_output_types": list(self.expected_output_types),
+            "effective_budget_envelope": dict(self.effective_budget_envelope),
+            "granted_permissions": list(self.granted_permissions),
+            "review_gates": list(self.review_gates),
+            "experiment_request_id": self.experiment_request_id,
+            "experiment_run_id": self.experiment_run_id,
+            "compare_run_ids": list(self.compare_run_ids),
+            "run_parameters": dict(self.run_parameters),
+            "resume_checkpoint_id": self.resume_checkpoint_id,
+            "generated_at": self.generated_at,
+        }
 
 
 @dataclass

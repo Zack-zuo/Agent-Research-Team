@@ -10,6 +10,11 @@ Supported callback names:
 - `checkpoint`
 - `complete`
 - `fail`
+- `interrupt`
+- `cancel`
 
-Stage 0 exposes the callback names only. Later activation-runtime stages define
-the durable state transitions, bundle materialization, and hard-stop behavior.
+Activation inputs include `bundle.json`, `briefing.md`, and `runtime.json`.
+
+The runtime persists durable state transitions, bundle materialization,
+checkpoints, budget heartbeats, terminal activation outcomes, basic artifact
+indexes, and stale activation recovery.

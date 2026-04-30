@@ -47,7 +47,7 @@ class RatPluginCliTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
 
-    def test_help_and_reserved_commands_do_not_import_runtime_dependencies(self) -> None:
+    def test_help_and_reserved_later_stage_commands_do_not_import_runtime_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             poison_dir = Path(tmpdir)
             (poison_dir / "yaml.py").write_text(
@@ -68,7 +68,7 @@ class RatPluginCliTests(unittest.TestCase):
             self.assertIn("usage:", help_result.stdout)
 
             reserved_result = subprocess.run(
-                [sys.executable, str(SCRIPT), "command", "assign_task", "--payload-json", json.dumps({})],
+                [sys.executable, str(SCRIPT), "command", "run_experiment", "--payload-json", json.dumps({})],
                 cwd=PLUGIN_ROOT,
                 env=env,
                 text=True,
@@ -77,7 +77,7 @@ class RatPluginCliTests(unittest.TestCase):
             self.assertEqual(reserved_result.returncode, 1)
             payload = json.loads(reserved_result.stdout)
             self.assertEqual(payload["error"]["code"], "not_implemented")
-            self.assertEqual(payload["error"]["command"], "assign_task")
+            self.assertEqual(payload["error"]["command"], "run_experiment")
             self.assertNotIn("yaml import should be lazy", reserved_result.stderr)
 
 

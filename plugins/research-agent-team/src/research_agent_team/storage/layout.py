@@ -61,12 +61,32 @@ class ProjectLayout:
         _validate_slot_id(slot_id)
         return self.state_dir / "slots" / f"{slot_id}.json"
 
+    def task_state_path(self, task_id: str) -> Path:
+        _validate_slot_id(task_id)
+        return self.state_dir / "tasks" / f"{task_id}.json"
+
+    def activation_state_path(self, activation_id: str) -> Path:
+        _validate_slot_id(activation_id)
+        return self.state_dir / "activations" / f"{activation_id}.json"
+
+    def slot_checkpoint_state_path(self, slot_id: str) -> Path:
+        _validate_slot_id(slot_id)
+        return self.state_dir / "checkpoints" / f"{slot_id}.json"
+
     def slot_root(self, slot_id: str) -> Path:
         _validate_slot_id(slot_id)
         return self.root / "agents" / slot_id
 
     def slot_workspace(self, slot_id: str) -> Path:
         return self.slot_root(slot_id) / "workspace"
+
+    def slot_activation_root(self, slot_id: str, activation_id: str) -> Path:
+        _validate_slot_id(activation_id)
+        return self.slot_root(slot_id) / "activations" / activation_id
+
+    def slot_checkpoint_root(self, slot_id: str, checkpoint_id: str) -> Path:
+        _validate_slot_id(checkpoint_id)
+        return self.slot_root(slot_id) / "checkpoints" / checkpoint_id
 
     def project_relative_path(self, relative_path: str) -> Path:
         candidate = Path(relative_path)

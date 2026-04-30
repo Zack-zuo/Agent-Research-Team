@@ -19,9 +19,20 @@ Implemented topology:
 - `retire_senior`
 - `retire_junior`
 
-Reserved for later roadmap stages:
+Implemented task admission and activation runtime:
 
 - `assign_task`
+- `render-launch-prompt`
+- activation `mark-running`
+- activation `heartbeat`
+- activation `checkpoint`
+- activation `complete`
+- activation `fail`
+- activation `interrupt`
+- activation `cancel`
+
+Reserved for later roadmap stages:
+
 - `approve_checkpoint`
 - `reject_checkpoint`
 - `request_status`

@@ -36,4 +36,6 @@ ACTIVATION_COMMAND_NAMES: tuple[str, ...] = (
     "checkpoint",
     "complete",
     "fail",
+    "interrupt",
+    "cancel",
 )

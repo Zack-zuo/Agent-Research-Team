@@ -8,8 +8,10 @@ description: Use when supervising a ResearchAgentTeam local project, creating or
 ResearchAgentTeam is a local-first control-plane plugin. The main Codex session
 acts as the supervisor. Deterministic Python services own project bootstrap,
 filesystem state, lifecycle commands, and persistent team topology. Task
-admission, activation leases, budgets, artifacts, and reports are added by later
-roadmap stages.
+admission, activation leases, checkpointing, completion, failure, interruption,
+cancellation, and stale recovery are owned by the control-plane services.
+Governance, visibility, reporting, knowledge, graph, and experiment workflows
+are added by later roadmap stages.
 
 ## Command Bridge
 
@@ -25,13 +27,14 @@ From a source checkout, use the plugin-local wrapper:
 python scripts/rat_plugin_cli.py command open_project --payload-json '{"root_path":"/absolute/project"}'
 ```
 
-Project lifecycle and topology commands delegate to application services and
-return structured JSON. Later-stage commands still return structured
-`not_implemented` responses until their roadmap stages attach business services.
+Project lifecycle, topology, and `assign_task` delegate to application services
+and return structured JSON. Approval, report, knowledge, graph, and experiment
+commands still return structured `not_implemented` responses until their
+roadmap stages attach business services.
 
 ## Launch Requests
 
-When a future command returns a non-null `launch_request`, render it before
+When `assign_task` returns a non-null `launch_request`, render it before
 launching a worker:
 
 ```bash

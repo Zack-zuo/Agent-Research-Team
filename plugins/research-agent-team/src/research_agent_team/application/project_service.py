@@ -54,6 +54,9 @@ def emit_event(
     event_type: str,
     payload: Dict[str, Any],
     slot_id: str = None,
+    task_id: str = None,
+    activation_id: str = None,
+    approval_id: str = None,
 ) -> None:
     timestamp = now_utc()
     event = Event(
@@ -62,6 +65,9 @@ def emit_event(
         created_at=timestamp,
         project_id=project_id,
         slot_id=slot_id,
+        task_id=task_id,
+        activation_id=activation_id,
+        approval_id=approval_id,
         payload=payload,
     )
     append_jsonl(_event_path(layout, timestamp), event.to_dict())
@@ -197,7 +203,7 @@ def _recent_artifacts(layout: ProjectLayout, limit: int = 10) -> List[Dict[str, 
     return artifacts
 
 
-def _open_result(layout: ProjectLayout, project: ResearchProject, warnings: List[str]) -> Dict[str, Any]:
+def _open_result(layout: ProjectLayout, project: ResearchProject, warnings: List[str], recovery: Dict[str, int] = None) -> Dict[str, Any]:
     topology = load_topology(layout)
     slots = read_all_slots(layout)
     task_counts = _task_counts(layout)
@@ -211,6 +217,7 @@ def _open_result(layout: ProjectLayout, project: ResearchProject, warnings: List
         "pending_approval_count": _pending_approval_count(layout),
         "recent_artifacts": _recent_artifacts(layout),
         "adapter_health": adapter_health,
+        "recovery": recovery or {"recovered_activation_count": 0, "requeued_task_count": 0, "blocked_task_count": 0},
     }
 
 
@@ -327,10 +334,13 @@ def open_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.recovery_service import recover_stale_activations_locked
+
         project = load_project(layout)
         topology = load_topology(layout)
         warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
-        return _open_result(layout, project, warnings)
+        recovery = recover_stale_activations_locked(layout)
+        return _open_result(layout, project, warnings, recovery)
 
 
 def switch_operating_mode(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -356,14 +366,17 @@ def pause_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.recovery_service import recover_stale_activations_locked
+
         project = load_project(layout)
         topology = load_topology(layout)
         warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
+        recovery = recover_stale_activations_locked(layout)
         project.status = ProjectStatus.PAUSED
         project.updated_at = now_utc()
         _write_project(layout, project)
         emit_event(layout, project.project_id, "project.paused", {})
-        return {"project": _project_summary(project), "warnings": warnings}
+        return {"project": _project_summary(project), "recovery": recovery, "warnings": warnings}
 
 
 def resume_project(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -371,11 +384,27 @@ def resume_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.activation_service import _admit_next_task_if_possible_locked
+        from research_agent_team.application.recovery_service import recover_stale_activations_locked
+
         project = load_project(layout)
         topology = load_topology(layout)
         warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
+        recovery = recover_stale_activations_locked(layout)
         project.status = ProjectStatus.ACTIVE
         project.updated_at = now_utc()
         _write_project(layout, project)
-        emit_event(layout, project.project_id, "project.resumed", {"admitted_task_count": 0})
-        return {"project": _project_summary(project), "admitted_task_count": 0, "warnings": warnings}
+        launch_requests = []
+        for slot_id in topology.active_slot_ids:
+            slot = _read_slot(layout, slot_id)
+            launch_request = _admit_next_task_if_possible_locked(layout, project.status, slot)
+            if launch_request is not None:
+                launch_requests.append(launch_request)
+        emit_event(layout, project.project_id, "project.resumed", {"admitted_task_count": len(launch_requests)})
+        return {
+            "project": _project_summary(project),
+            "admitted_task_count": len(launch_requests),
+            "launch_requests": launch_requests,
+            "recovery": recovery,
+            "warnings": warnings,
+        }

@@ -100,6 +100,12 @@ def _load_command_handler(
             "retire_junior": retire_junior,
         }[command_name], CommandError
 
+    if command_name == "assign_task":
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.task_service import assign_task
+
+        return assign_task, CommandError
+
     return None, None
 
 
@@ -120,16 +126,48 @@ def run_command(args: argparse.Namespace) -> int:
 
 def run_activation(args: argparse.Namespace) -> int:
     payload = _load_payload(args)
-    _dump_json(_not_implemented("activation", args.activation_command, payload))
-    return 1
+    from research_agent_team.application.activation_service import (
+        cancel_activation,
+        complete_activation,
+        fail_activation,
+        heartbeat_activation,
+        interrupt_activation,
+        mark_activation_running,
+        persist_checkpoint,
+    )
+    from research_agent_team.application.errors import CommandError
+
+    try:
+        if args.activation_command == "mark-running":
+            result = mark_activation_running(args.root_path, args.activation_id, args.runtime_pid)
+        elif args.activation_command == "heartbeat":
+            result = heartbeat_activation(args.root_path, args.activation_id, payload or None)
+        elif args.activation_command == "checkpoint":
+            result = persist_checkpoint(args.root_path, args.activation_id, payload)
+        elif args.activation_command == "complete":
+            result = complete_activation(args.root_path, args.activation_id, payload)
+        elif args.activation_command == "fail":
+            result = fail_activation(args.root_path, args.activation_id, payload)
+        elif args.activation_command == "interrupt":
+            result = interrupt_activation(args.root_path, args.activation_id, payload)
+        elif args.activation_command == "cancel":
+            result = cancel_activation(args.root_path, args.activation_id, payload)
+        else:
+            _dump_json(_not_implemented("activation", args.activation_command, payload))
+            return 1
+        _dump_json(_ok(result))
+        return 0
+    except CommandError as exc:
+        _dump_json(_error(exc))
+        return 1
 
 
 def run_render_launch_prompt(args: argparse.Namespace) -> int:
     payload = _load_payload(args)
-    command_payload = dict(payload)
-    command_payload["root_path"] = args.root_path
-    _dump_json(_not_implemented("render_launch_prompt", "render-launch-prompt", command_payload))
-    return 1
+    from research_agent_team.runtime import render_launch_prompt
+
+    print(render_launch_prompt(args.root_path, payload))
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
