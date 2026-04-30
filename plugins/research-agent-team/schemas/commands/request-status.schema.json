@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/request-status.schema.json",
+  "title": "RequestStatusCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path"],
+  "properties": {
+    "root_path": {"type": "string"}
+  }
+}

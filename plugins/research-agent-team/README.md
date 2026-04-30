@@ -23,16 +23,18 @@ The package provides:
   materialization, launch requests, and command-driven advancement
 - activation runtime callbacks for running, heartbeat, checkpoint, completion,
   failure, interruption, cancellation, and stale recovery on project preflight
-- task-aware budget envelopes, heartbeat consumption, and basic output artifact
-  indexing during activation callbacks
+- Stage 4 governance commands for approving or rejecting checkpoints,
+  requesting status, and generating reports
+- artifact indexing, visibility enforcement, activation permission manifests,
+  budget warnings, durable report artifacts, and derived slot inbox/outbox views
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
 - hook and MCP descriptors; MCP registration remains optional and inert until a
   later roadmap stage
 
-Governance, visibility, reporting, knowledge, graph, and experiment behavior are
-implemented in later roadmap stages.
+Knowledge, graph, and experiment behavior are implemented in later roadmap
+stages.
 
 ## Local Checks
 

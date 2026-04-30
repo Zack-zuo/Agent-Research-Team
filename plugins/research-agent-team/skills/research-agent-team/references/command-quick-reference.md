@@ -31,12 +31,15 @@ Implemented task admission and activation runtime:
 - activation `interrupt`
 - activation `cancel`
 
-Reserved for later roadmap stages:
+Implemented governance and reporting:
 
 - `approve_checkpoint`
 - `reject_checkpoint`
 - `request_status`
 - `generate_report`
+
+Reserved for later roadmap stages:
+
 - `sync_knowledge_base`
 - `rebuild_graph`
 - `run_experiment`

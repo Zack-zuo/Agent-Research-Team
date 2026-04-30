@@ -340,6 +340,9 @@ def open_project(payload: Dict[str, Any]) -> Dict[str, Any]:
         topology = load_topology(layout)
         warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         recovery = recover_stale_activations_locked(layout)
+        from research_agent_team.application.reporting_service import rebuild_slot_views
+
+        rebuild_slot_views(layout)
         return _open_result(layout, project, warnings, recovery)
 
 

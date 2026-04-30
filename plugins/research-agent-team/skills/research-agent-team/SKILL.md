@@ -10,8 +10,10 @@ acts as the supervisor. Deterministic Python services own project bootstrap,
 filesystem state, lifecycle commands, and persistent team topology. Task
 admission, activation leases, checkpointing, completion, failure, interruption,
 cancellation, and stale recovery are owned by the control-plane services.
-Governance, visibility, reporting, knowledge, graph, and experiment workflows
-are added by later roadmap stages.
+Stage 4 governance services enforce artifact visibility, write activation
+permission manifests, replay approval decisions, generate status/report
+artifacts, and rebuild slot inbox/outbox views. Knowledge, graph, and experiment
+workflows are added by later roadmap stages.
 
 ## Command Bridge
 
@@ -27,10 +29,10 @@ From a source checkout, use the plugin-local wrapper:
 python scripts/rat_plugin_cli.py command open_project --payload-json '{"root_path":"/absolute/project"}'
 ```
 
-Project lifecycle, topology, and `assign_task` delegate to application services
-and return structured JSON. Approval, report, knowledge, graph, and experiment
-commands still return structured `not_implemented` responses until their
-roadmap stages attach business services.
+Project lifecycle, topology, `assign_task`, approval decisions, status, and
+report commands delegate to application services and return structured JSON.
+Knowledge, graph, and experiment commands still return structured
+`not_implemented` responses until their roadmap stages attach business services.
 
 ## Launch Requests
 

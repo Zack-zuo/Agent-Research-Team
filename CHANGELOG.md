@@ -1,5 +1,11 @@
 # Changelog
 
+## M5 - Stage 4
+
+- implemented governance services for artifact indexing, visibility enforcement, permission manifests, approval replay, status reporting, report generation, and derived slot inbox/outbox views
+- exposed `approve_checkpoint`, `reject_checkpoint`, `request_status`, and `generate_report` through the Codex-facing CLI
+- made budget hard stops, pending approvals, recent artifacts, and generated Markdown reports visible through command results and report artifacts
+
 ## M4 - Stage 3
 
 - implemented task admission for `assign_task`, including requester and owner validation, queue placement, effective budget envelopes, and immediate admission for idle eligible slots

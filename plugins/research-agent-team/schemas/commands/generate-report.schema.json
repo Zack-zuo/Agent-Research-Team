@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/generate-report.schema.json",
+  "title": "GenerateReportCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "report_type"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "report_type": {
+      "type": "string",
+      "enum": [
+        "status",
+        "topology",
+        "pending_approvals",
+        "next_steps",
+        "literature_review",
+        "experiment_summary",
+        "final_package"
+      ]
+    },
+    "scope_type": {
+      "type": "string",
+      "enum": ["project", "slot", "task", "experiment_run"]
+    },
+    "scope_id": {"type": "string"}
+  }
+}

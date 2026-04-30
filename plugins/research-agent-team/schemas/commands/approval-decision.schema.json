@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/approval-decision.schema.json",
+  "title": "ApprovalDecisionCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "approval_id"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "approval_id": {"type": "string"},
+    "decision_summary": {"type": "string"}
+  }
+}

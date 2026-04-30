@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional
 
+from research_agent_team.application.artifact_service import publish_output_artifacts
 from research_agent_team.application.errors import CommandError
 from research_agent_team.application.project_service import _read_slot, _write_slot, emit_event, load_project
+from research_agent_team.application.visibility_service import build_granted_permissions, permission_manifest, resolve_attached_artifacts
 from research_agent_team.domain import AgentActivation, AgentSlot, ActivationStatus, ProjectStatus, SlotCheckpoint, SlotStatus, Task, TaskBundle, TaskStatus
 from research_agent_team.shared import new_id, now_utc
 from research_agent_team.storage import ProjectLayout, append_jsonl, project_lock, read_json, write_json_atomic, write_text_atomic
@@ -44,6 +46,7 @@ def _activation_relative_paths(slot_id: str, activation_id: str) -> Dict[str, st
         "bundle_path": str(base / "bundle.json"),
         "briefing_path": str(base / "briefing.md"),
         "runtime_metadata_path": str(base / "runtime.json"),
+        "permissions_manifest_path": str(base / "permissions.json"),
     }
 
 
@@ -82,54 +85,6 @@ def _briefing_text(task: Task) -> str:
     )
 
 
-def _granted_permissions(task: Task) -> List[str]:
-    grants = ["read:bundle", "write:workspace", "checkpoint:slot", "callback:activation"]
-    grants.extend(f"read:{path_root}" for path_root in task.input_path_roots)
-    grants.extend(f"artifact:{artifact_id}" for artifact_id in task.input_artifact_ids)
-    return grants
-
-
-def _validate_output_descriptor(slot_id: str, descriptor: Dict[str, Any]) -> PurePosixPath:
-    raw_path = descriptor.get("path")
-    if not isinstance(raw_path, str) or not raw_path.strip():
-        raise CommandError("invalid_payload", "output artifact path is required", field="output_artifacts.path")
-    relative_path = PurePosixPath(raw_path.replace("\\", "/"))
-    if relative_path.is_absolute() or "." in relative_path.parts or ".." in relative_path.parts or not relative_path.parts:
-        raise CommandError("invalid_artifact_path", "Output artifact paths must be project-relative", path=raw_path)
-    if relative_path.parts[:1] == ("shared",) or relative_path.parts[:2] == ("agents", slot_id):
-        return relative_path
-    raise CommandError(
-        "invalid_artifact_path",
-        "Output artifacts must live under shared/ or the producing slot directory",
-        path=raw_path,
-    )
-
-
-def _publish_output_artifacts(layout: ProjectLayout, activation: AgentActivation, task: Task, descriptors: List[Dict[str, Any]]) -> List[str]:
-    artifact_ids: List[str] = []
-    for descriptor in descriptors:
-        if not isinstance(descriptor, dict):
-            raise CommandError("invalid_payload", "output_artifacts entries must be objects", field="output_artifacts")
-        relative_path = _validate_output_descriptor(activation.slot_id, descriptor)
-        resolved = layout.project_relative_path(str(relative_path))
-        if not resolved.exists():
-            raise CommandError("artifact_path_not_found", f"Output artifact path does not exist: {relative_path}", path=str(relative_path))
-        artifact = {
-            "artifact_id": str(descriptor.get("artifact_id") or new_id("artifact")),
-            "type": str(descriptor.get("type", "activation_output")),
-            "path": str(relative_path),
-            "visibility": str(descriptor.get("visibility", "slot_private")),
-            "producing_slot_id": activation.slot_id,
-            "producing_activation_id": activation.activation_id,
-            "task_id": task.task_id,
-            "source_artifact_ids": list(descriptor.get("source_artifact_ids") or task.input_artifact_ids),
-            "created_at": now_utc(),
-        }
-        append_jsonl(layout.artifact_index, artifact)
-        artifact_ids.append(artifact["artifact_id"])
-    return artifact_ids
-
-
 def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: ProjectStatus, slot: AgentSlot) -> Optional[Dict[str, str]]:
     if project_status != ProjectStatus.ACTIVE:
         return None
@@ -144,6 +99,8 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
     timestamp = now_utc()
     activation_id = new_id("activation")
     bundle_id = new_id("bundle")
+    attached_artifacts = resolve_attached_artifacts(layout, task.requester_slot_id, task.owner_slot_id, task.input_artifact_ids)
+    granted_permissions = build_granted_permissions(task, attached_artifacts)
     activation = AgentActivation(
         activation_id=activation_id,
         slot_id=slot.slot_id,
@@ -167,7 +124,7 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
         allowed_path_roots=list(task.input_path_roots),
         expected_output_types=list(task.expected_output_types),
         effective_budget_envelope=dict(task.budget_envelope),
-        granted_permissions=_granted_permissions(task),
+        granted_permissions=granted_permissions,
         review_gates=["experiment_review_required"] if task.review_requirement == "experiment_review" else [],
         resume_checkpoint_id=task.latest_checkpoint_id,
         generated_at=timestamp,
@@ -178,6 +135,7 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
     _write_activation(layout, activation)
     write_json_atomic(activation_dir / "bundle.json", bundle.to_dict())
     write_text_atomic(activation_dir / "briefing.md", _briefing_text(task))
+    write_json_atomic(activation_dir / "permissions.json", permission_manifest(task, activation, attached_artifacts, granted_permissions))
     write_json_atomic(
         activation_dir / "runtime.json",
         {
@@ -370,7 +328,7 @@ def persist_checkpoint(root_path: str, activation_id: str, checkpoint_payload: D
         checkpoint_dir = layout.slot_checkpoint_root(slot.slot_id, checkpoint_id)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         output_artifact_ids = list(checkpoint_payload.get("output_artifact_ids") or [])
-        output_artifact_ids.extend(_publish_output_artifacts(layout, activation, task, list(checkpoint_payload.get("output_artifacts") or [])))
+        output_artifact_ids.extend(publish_output_artifacts(layout, activation, task, list(checkpoint_payload.get("output_artifacts") or [])))
         checkpoint = SlotCheckpoint(
             checkpoint_id=checkpoint_id,
             slot_id=slot.slot_id,
@@ -405,6 +363,9 @@ def persist_checkpoint(root_path: str, activation_id: str, checkpoint_payload: D
         activation.output_artifact_ids = output_artifact_ids
         _write_activation(layout, activation)
 
+        from research_agent_team.application.reporting_service import rebuild_slot_views
+
+        rebuild_slot_views(layout, {slot.slot_id, task.requester_slot_id, "supervisor"})
         emit_event(
             layout,
             project.project_id,
@@ -433,7 +394,7 @@ def _finish_activation(
     project = load_project(layout)
     timestamp = now_utc()
     output_artifact_ids = list(payload.get("output_artifact_ids") or [])
-    output_artifact_ids.extend(_publish_output_artifacts(layout, activation, task, list(payload.get("output_artifacts") or [])))
+    output_artifact_ids.extend(publish_output_artifacts(layout, activation, task, list(payload.get("output_artifacts") or [])))
 
     activation.status = terminal_status
     activation.ended_at = timestamp
@@ -469,6 +430,9 @@ def _finish_activation(
     _write_slot(layout, slot)
     _write_task(layout, task)
 
+    from research_agent_team.application.reporting_service import rebuild_slot_views
+
+    rebuild_slot_views(layout, {slot.slot_id, task.requester_slot_id, "supervisor"})
     event_suffix = terminal_status.value
     emit_event(
         layout,

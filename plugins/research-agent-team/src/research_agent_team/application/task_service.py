@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +15,7 @@ from research_agent_team.application.project_service import (
     load_project,
     load_topology,
 )
+from research_agent_team.application.visibility_service import resolve_attached_artifacts
 from research_agent_team.domain import AgentSlot, ApprovalApproverType, ApprovalScopeType, ApprovalStatus, ProjectStatus, SlotRole, SlotStatus, Task, TaskStatus
 from research_agent_team.shared import new_id, now_utc
 from research_agent_team.storage import ProjectLayout, project_lock, read_json, write_json_atomic
@@ -81,30 +81,6 @@ def _validate_input_path_roots(layout: ProjectLayout, owner_slot_id: str, input_
                 path=raw_path,
             )
         layout.project_relative_path(str(path))
-
-
-def _known_artifact_ids(layout: ProjectLayout) -> set[str]:
-    if not layout.artifact_index.exists():
-        return set()
-    artifact_ids: set[str] = set()
-    for line in layout.artifact_index.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            artifact = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        artifact_id = artifact.get("artifact_id") if isinstance(artifact, dict) else None
-        if isinstance(artifact_id, str):
-            artifact_ids.add(artifact_id)
-    return artifact_ids
-
-
-def _validate_artifact_ids(layout: ProjectLayout, artifact_ids: List[str]) -> None:
-    known_ids = _known_artifact_ids(layout)
-    for artifact_id in artifact_ids:
-        if artifact_id not in known_ids:
-            raise CommandError("artifact_not_found", f"Input artifact does not exist: {artifact_id}", artifact_id=artifact_id)
 
 
 def _requester_can_assign(requester: AgentSlot, owner: AgentSlot) -> bool:
@@ -233,7 +209,7 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not _slot_is_executable(layout, owner):
             raise CommandError("owner_not_executable", "Owner slot is not executable under policy", owner_slot_id=owner_slot_id)
 
-        _validate_artifact_ids(layout, input_artifact_ids)
+        resolve_attached_artifacts(layout, requester_slot_id, owner_slot_id, input_artifact_ids)
         _validate_input_path_roots(layout, owner_slot_id, input_path_roots)
         budget_envelope = _effective_budget_envelope(layout, owner, budget_override)
         timestamp = now_utc()
@@ -296,6 +272,9 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
             approval_id=task.current_approval_id,
         )
 
+        from research_agent_team.application.reporting_service import rebuild_slot_views
+
+        rebuild_slot_views(layout, {requester_slot_id, owner_slot_id, "supervisor"})
         task = _read_task(layout, task.task_id)
         owner = _read_slot(layout, owner.slot_id)
         return {

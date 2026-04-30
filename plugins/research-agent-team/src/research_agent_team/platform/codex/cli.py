@@ -106,6 +106,24 @@ def _load_command_handler(
 
         return assign_task, CommandError
 
+    if command_name in {"approve_checkpoint", "reject_checkpoint"}:
+        from research_agent_team.application.approval_service import approve_checkpoint, reject_checkpoint
+        from research_agent_team.application.errors import CommandError
+
+        return {
+            "approve_checkpoint": approve_checkpoint,
+            "reject_checkpoint": reject_checkpoint,
+        }[command_name], CommandError
+
+    if command_name in {"request_status", "generate_report"}:
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.reporting_service import generate_report, request_status
+
+        return {
+            "request_status": request_status,
+            "generate_report": generate_report,
+        }[command_name], CommandError
+
     return None, None
 
 

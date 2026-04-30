@@ -80,6 +80,18 @@ class RatPluginCliTests(unittest.TestCase):
             self.assertEqual(payload["error"]["command"], "run_experiment")
             self.assertNotIn("yaml import should be lazy", reserved_result.stderr)
 
+    def test_stage4_commands_are_routed_to_runtime_handlers(self) -> None:
+        for command_name in ["approve_checkpoint", "reject_checkpoint", "request_status", "generate_report"]:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "command", command_name, "--payload-json", json.dumps({})],
+                cwd=PLUGIN_ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertNotEqual(payload["error"]["code"], "not_implemented")
+
 
 if __name__ == "__main__":
     unittest.main()

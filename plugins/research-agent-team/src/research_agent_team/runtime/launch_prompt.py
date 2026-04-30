@@ -50,11 +50,17 @@ def render_launch_prompt(root_path: str, launch_request: Dict[str, Any]) -> str:
     bundle_path = _required_string(launch_request, "bundle_path")
     briefing_path = _required_string(launch_request, "briefing_path")
     runtime_metadata_path = _required_string(launch_request, "runtime_metadata_path")
+    permissions_manifest_path = launch_request.get("permissions_manifest_path")
+    if permissions_manifest_path is not None and not isinstance(permissions_manifest_path, str):
+        raise CommandError("invalid_launch_request", "permissions_manifest_path must be a string")
 
     slot = _read_slot(layout, slot_id)
     bundle_text = _resolve_project_file(layout, bundle_path).read_text(encoding="utf-8")
     briefing_text = _resolve_project_file(layout, briefing_path).read_text(encoding="utf-8")
     runtime_text = _resolve_project_file(layout, runtime_metadata_path).read_text(encoding="utf-8")
+    permissions_text = None
+    if permissions_manifest_path:
+        permissions_text = _resolve_project_file(layout, permissions_manifest_path).read_text(encoding="utf-8")
     cli_name = "research-agent-team-codex"
     root_json = json.dumps(str(layout.root))
     complete_payload = json.dumps(json.dumps({"output_artifact_ids": [], "output_artifacts": []}))
@@ -113,6 +119,11 @@ def render_launch_prompt(root_path: str, launch_request: Dict[str, Any]) -> str:
             "Runtime metadata:",
             "```json",
             runtime_text,
+            "```",
+            "",
+            "Permission manifest:",
+            "```json",
+            permissions_text or "{}",
             "```",
         ]
     )
