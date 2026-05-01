@@ -101,6 +101,19 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
     bundle_id = new_id("bundle")
     attached_artifacts = resolve_attached_artifacts(layout, task.requester_slot_id, task.owner_slot_id, task.input_artifact_ids)
     granted_permissions = build_granted_permissions(task, attached_artifacts)
+    experiment_request_id = None
+    experiment_run_id = None
+    compare_run_ids: List[str] = []
+    run_parameters: Dict[str, Any] = {}
+    if task.review_requirement == "experiment_review":
+        from research_agent_team.application.experiment_service import _experiment_pair_for_task
+
+        experiment_request, experiment_run = _experiment_pair_for_task(layout, task.task_id)
+        if experiment_request is not None and experiment_run is not None:
+            experiment_request_id = experiment_request.experiment_request_id
+            experiment_run_id = experiment_run.experiment_run_id
+            compare_run_ids = list(experiment_request.compare_run_ids)
+            run_parameters = dict(experiment_request.run_parameters)
     activation = AgentActivation(
         activation_id=activation_id,
         slot_id=slot.slot_id,
@@ -126,6 +139,10 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
         effective_budget_envelope=dict(task.budget_envelope),
         granted_permissions=granted_permissions,
         review_gates=["experiment_review_required"] if task.review_requirement == "experiment_review" else [],
+        experiment_request_id=experiment_request_id,
+        experiment_run_id=experiment_run_id,
+        compare_run_ids=compare_run_ids,
+        run_parameters=run_parameters,
         resume_checkpoint_id=task.latest_checkpoint_id,
         generated_at=timestamp,
     )
@@ -160,6 +177,10 @@ def _admit_next_task_if_possible_locked(layout: ProjectLayout, project_status: P
     task.current_activation_id = activation_id
     task.updated_at = timestamp
     _write_task(layout, task)
+    if task.review_requirement == "experiment_review":
+        from research_agent_team.application.experiment_service import mark_experiment_admitted_locked
+
+        mark_experiment_admitted_locked(layout, task_id=task.task_id, activation_id=activation_id)
 
     project = load_project(layout)
     emit_event(layout, project.project_id, "task.admitted", {"slot_id": slot.slot_id}, slot_id=slot.slot_id, task_id=task.task_id)
@@ -203,6 +224,10 @@ def mark_activation_running(root_path: str, activation_id: str, runtime_pid: Opt
         task.started_at = task.started_at or timestamp
         task.updated_at = timestamp
         _write_task(layout, task)
+        if task.review_requirement == "experiment_review":
+            from research_agent_team.application.experiment_service import mark_experiment_run_running_locked
+
+            mark_experiment_run_running_locked(layout, task_id=task.task_id, activation_id=activation.activation_id)
 
         emit_event(
             layout,
@@ -426,6 +451,29 @@ def _finish_activation(
     else:
         task.block_reason = None
 
+    if task.review_requirement == "experiment_review":
+        from research_agent_team.application.experiment_service import (
+            fail_experiment_run_locked,
+            mark_experiment_run_cancelled_locked,
+            mark_experiment_run_interrupted_locked,
+        )
+
+        if terminal_status == ActivationStatus.FAILED:
+            failure_artifact_id = fail_experiment_run_locked(
+                layout,
+                task_id=task.task_id,
+                activation_id=activation.activation_id,
+                failure_summary=activation.failure_summary or "Experiment activation failed.",
+            )
+            if failure_artifact_id and failure_artifact_id not in output_artifact_ids:
+                output_artifact_ids.append(failure_artifact_id)
+                activation.output_artifact_ids = output_artifact_ids
+                _write_activation(layout, activation)
+        elif terminal_status == ActivationStatus.INTERRUPTED:
+            mark_experiment_run_interrupted_locked(layout, task_id=task.task_id, activation_id=activation.activation_id)
+        elif terminal_status == ActivationStatus.CANCELLED:
+            mark_experiment_run_cancelled_locked(layout, task_id=task.task_id, activation_id=activation.activation_id)
+
     slot.updated_at = timestamp
     _write_slot(layout, slot)
     _write_task(layout, task)
@@ -469,6 +517,65 @@ def complete_activation(root_path: str, activation_id: str, completion_payload: 
             raise CommandError("invalid_activation_state", "Only active activations can complete", activation_id=activation_id)
         task = _read_task(layout, activation.task_id)
         slot = _read_slot(layout, activation.slot_id)
+        if task.review_requirement == "experiment_review":
+            from research_agent_team.application.experiment_service import publish_experiment_run_locked
+
+            try:
+                published_artifact_ids = publish_experiment_run_locked(layout, activation=activation, task=task)
+            except Exception as exc:
+                return _finish_activation(
+                    layout,
+                    activation,
+                    task,
+                    slot,
+                    ActivationStatus.FAILED,
+                    TaskStatus.FAILED,
+                    {"failure_summary": str(exc)},
+                )
+
+            project = load_project(layout)
+            timestamp = now_utc()
+            activation.status = ActivationStatus.COMPLETED
+            activation.ended_at = timestamp
+            activation.output_artifact_ids = published_artifact_ids
+            _write_activation(layout, activation)
+
+            if slot.current_activation_id == activation.activation_id:
+                slot.current_activation_id = None
+            slot.active_task_ids = [task_id for task_id in slot.active_task_ids if task_id != task.task_id]
+            slot.updated_at = timestamp
+            _write_slot(layout, slot)
+
+            task.current_activation_id = None
+            task.started_at = task.started_at or timestamp
+            task.updated_at = timestamp
+            task.status = TaskStatus.AWAITING_REVIEW
+            _write_task(layout, task)
+
+            from research_agent_team.application.reporting_service import rebuild_slot_views
+
+            rebuild_slot_views(layout, {slot.slot_id, task.requester_slot_id, "supervisor"})
+            emit_event(
+                layout,
+                project.project_id,
+                "activation.completed",
+                {},
+                slot_id=slot.slot_id,
+                task_id=task.task_id,
+                activation_id=activation.activation_id,
+            )
+            emit_event(
+                layout,
+                project.project_id,
+                "task.awaiting_review",
+                {},
+                slot_id=slot.slot_id,
+                task_id=task.task_id,
+                activation_id=activation.activation_id,
+            )
+            slot = _read_slot(layout, slot.slot_id)
+            next_launch_request = _admit_next_task_if_possible_locked(layout, project.status, slot)
+            return {"published_artifact_ids": published_artifact_ids, "next_launch_request": next_launch_request}
         return _finish_activation(layout, activation, task, slot, ActivationStatus.COMPLETED, TaskStatus.COMPLETED, completion_payload)
 
 

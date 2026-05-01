@@ -43,7 +43,7 @@ Implemented knowledge and graph workflows:
 - `sync_knowledge_base`
 - `rebuild_graph`
 
-Reserved for later roadmap stages:
+Implemented experiment workflows:
 
 - `run_experiment`
 - `review_experiment`

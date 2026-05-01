@@ -11,7 +11,20 @@ from research_agent_team.domain.enums import (
     SlotStatus,
     TaskStatus,
 )
-from research_agent_team.domain.models import AgentActivation, AgentSlot, Event, ResearchProject, SlotCheckpoint, Task, TaskBundle, TeamTopology
+from research_agent_team.domain.models import (
+    AgentActivation,
+    AgentSlot,
+    Event,
+    ExperimentComparison,
+    ExperimentRequest,
+    ExperimentReview,
+    ExperimentRun,
+    ResearchProject,
+    SlotCheckpoint,
+    Task,
+    TaskBundle,
+    TeamTopology,
+)
 
 __all__ = [
     "ActivationStatus",
@@ -22,6 +35,10 @@ __all__ = [
     "ApprovalStatus",
     "ArtifactVisibility",
     "Event",
+    "ExperimentComparison",
+    "ExperimentRequest",
+    "ExperimentReview",
+    "ExperimentRun",
     "OperatingMode",
     "ProjectStatus",
     "ResearchProject",

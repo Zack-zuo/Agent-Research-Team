@@ -5,7 +5,9 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "adapter": {"type": "string"},
     "adapter_id": {"type": "string"},
+    "mode": {"type": "string"},
     "enabled": {"type": "boolean"},
     "settings": {"type": "object"}
   }

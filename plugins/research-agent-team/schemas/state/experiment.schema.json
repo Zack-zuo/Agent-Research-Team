@@ -7,6 +7,18 @@
   "properties": {
     "experiment_request_id": {"type": "string"},
     "experiment_run_id": {"type": "string"},
-    "status": {"type": "string"}
+    "comparison_id": {"type": "string"},
+    "review_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "activation_id": {"type": ["string", "null"]},
+    "requester_slot_id": {"type": "string"},
+    "executor_slot_id": {"type": "string"},
+    "reviewer_slot_id": {"type": "string"},
+    "status": {"type": "string"},
+    "run_root": {"type": "string"},
+    "published_artifact_ids": {"type": "array", "items": {"type": "string"}},
+    "comparison_ids": {"type": "array", "items": {"type": "string"}},
+    "review_artifact_id": {"type": "string"},
+    "follow_up_task_id": {"type": ["string", "null"]}
   }
 }

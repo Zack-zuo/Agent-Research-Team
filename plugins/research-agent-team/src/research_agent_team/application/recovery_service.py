@@ -61,6 +61,11 @@ def recover_stale_activations_locked(layout: ProjectLayout, target_slot_ids: Opt
                 slot.queued_task_ids.append(task.task_id)
             summary["requeued_task_count"] += 1
 
+        if task.review_requirement == "experiment_review":
+            from research_agent_team.application.experiment_service import mark_experiment_run_interrupted_locked
+
+            mark_experiment_run_interrupted_locked(layout, task_id=task.task_id, activation_id=activation.activation_id)
+
         slot.updated_at = now
         _write_task(layout, task)
         _write_slot(layout, slot)

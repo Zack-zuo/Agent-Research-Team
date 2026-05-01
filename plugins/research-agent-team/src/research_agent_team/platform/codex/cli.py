@@ -136,6 +136,15 @@ def _load_command_handler(
 
         return rebuild_graph, CommandError
 
+    if command_name in {"run_experiment", "review_experiment"}:
+        from research_agent_team.application.errors import CommandError
+        from research_agent_team.application.experiment_service import review_experiment, run_experiment
+
+        return {
+            "run_experiment": run_experiment,
+            "review_experiment": review_experiment,
+        }[command_name], CommandError
+
     return None, None
 
 

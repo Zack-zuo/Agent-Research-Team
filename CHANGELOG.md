@@ -1,5 +1,11 @@
 # Changelog
 
+## M7 - Stage 6
+
+- implemented `run_experiment` and `review_experiment` for senior-defined, junior-executed experiment workflows with normal task admission, activation bundles, budget approvals, and follow-up task creation
+- added local-file experiment adapter publication under `experiments/runs/`, queue packages under `experiments/queue/`, canonical request/run/comparison/review state, and project-shared artifact indexing
+- wired experiment state into activation completion, failure, interruption, stale recovery, experiment summary reports, CLI routing, schemas, plugin docs, and skill references
+
 ## M6 - Stage 5
 
 - implemented knowledge sync for slot-local and project scopes, including Markdown wiki compilation, raw source ingestion, artifact indexing, source hashes, backlinks, and graph-dirty state

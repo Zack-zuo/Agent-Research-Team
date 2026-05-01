@@ -112,6 +112,9 @@ def _decide_budget_override(layout: ProjectLayout, approval: Dict[str, Any], app
         slot.updated_at = timestamp
         _write_slot(layout, slot)
         _write_task(layout, task)
+        from research_agent_team.application.experiment_service import mark_experiment_budget_decision_locked
+
+        mark_experiment_budget_decision_locked(layout, task_id=task.task_id, approved=True)
         slot = _read_slot(layout, slot.slot_id)
         launch_request = _admit_next_task_if_possible_locked(layout, project.status, slot)
     else:
@@ -122,6 +125,9 @@ def _decide_budget_override(layout: ProjectLayout, approval: Dict[str, Any], app
         slot.updated_at = timestamp
         _write_slot(layout, slot)
         _write_task(layout, task)
+        from research_agent_team.application.experiment_service import mark_experiment_budget_decision_locked
+
+        mark_experiment_budget_decision_locked(layout, task_id=task.task_id, approved=False)
         applied = False
 
     return {

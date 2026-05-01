@@ -71,6 +71,22 @@ def _approvals(layout: ProjectLayout) -> List[Dict[str, Any]]:
     return _read_json_files(layout.state_dir / "approvals")
 
 
+def _experiment_requests(layout: ProjectLayout) -> List[Dict[str, Any]]:
+    return _read_json_files(layout.state_dir / "experiments" / "requests")
+
+
+def _experiment_runs(layout: ProjectLayout) -> List[Dict[str, Any]]:
+    return _read_json_files(layout.state_dir / "experiments" / "runs")
+
+
+def _experiment_comparisons(layout: ProjectLayout) -> List[Dict[str, Any]]:
+    return _read_json_files(layout.state_dir / "experiments" / "comparisons")
+
+
+def _experiment_reviews(layout: ProjectLayout) -> List[Dict[str, Any]]:
+    return _read_json_files(layout.state_dir / "experiments" / "reviews")
+
+
 def _pending_approvals(layout: ProjectLayout) -> List[Dict[str, Any]]:
     return [approval for approval in _approvals(layout) if approval.get("status") == "pending"]
 
@@ -315,26 +331,6 @@ def _render_next_steps_report(layout: ProjectLayout, scope_type: str, scope_id: 
     return "\n".join(lines) + "\n"
 
 
-def _render_unimplemented_stage_report(report_type: str, scope_type: str, scope_id: Optional[str]) -> tuple[str, List[str]]:
-    title = "Literature Review" if report_type == "literature_review" else "Experiment Summary"
-    return (
-        "\n".join(
-            [
-                f"# {title}",
-                "",
-                f"- Scope: {scope_type}",
-                f"- Scope ID: {scope_id or 'project'}",
-                "- Indexed Source Count: 0",
-                "",
-                "## Notes",
-                f"- {title} sources are not available until the later roadmap stage is implemented.",
-            ]
-        )
-        + "\n",
-        [f"{title} sources unavailable"],
-    )
-
-
 def _project_wiki_artifacts(layout: ProjectLayout) -> List[Dict[str, Any]]:
     knowledge_state_path = layout.state_dir / "knowledge" / "project.json"
     if not knowledge_state_path.exists():
@@ -380,6 +376,105 @@ def _render_literature_review_report(layout: ProjectLayout, scope_type: str, sco
             continue
         excerpt = path.read_text(encoding="utf-8")[:600].strip().replace("\n", " ")
         lines.append(f"- {relative_path}: {excerpt or 'empty'}")
+    return "\n".join(lines) + "\n", warnings
+
+
+def _request_by_id(layout: ProjectLayout) -> Dict[str, Dict[str, Any]]:
+    return {
+        request.get("experiment_request_id"): request
+        for request in _experiment_requests(layout)
+        if isinstance(request.get("experiment_request_id"), str)
+    }
+
+
+def _review_by_run_id(layout: ProjectLayout) -> Dict[str, Dict[str, Any]]:
+    return {
+        review.get("experiment_run_id"): review
+        for review in _experiment_reviews(layout)
+        if isinstance(review.get("experiment_run_id"), str)
+    }
+
+
+def _comparisons_by_id(layout: ProjectLayout) -> Dict[str, Dict[str, Any]]:
+    return {
+        comparison.get("comparison_id"): comparison
+        for comparison in _experiment_comparisons(layout)
+        if isinstance(comparison.get("comparison_id"), str)
+    }
+
+
+def _runs_for_scope(layout: ProjectLayout, scope_type: str, scope_id: Optional[str]) -> List[Dict[str, Any]]:
+    runs = _experiment_runs(layout)
+    requests = _request_by_id(layout)
+    if scope_type == "project":
+        return runs
+    if scope_type == "experiment_run":
+        return [run for run in runs if run.get("experiment_run_id") == scope_id]
+    if scope_type == "task":
+        return [run for run in runs if run.get("task_id") == scope_id]
+    if scope_type == "slot":
+        selected = []
+        for run in runs:
+            request = requests.get(run.get("experiment_request_id"))
+            if not request:
+                continue
+            if scope_id in {request.get("requester_slot_id"), request.get("executor_slot_id"), request.get("reviewer_slot_id")}:
+                selected.append(run)
+        return selected
+    return []
+
+
+def _render_experiment_summary_report(layout: ProjectLayout, scope_type: str, scope_id: Optional[str]) -> tuple[str, List[str]]:
+    runs = _runs_for_scope(layout, scope_type, scope_id)
+    requests = _request_by_id(layout)
+    reviews = _review_by_run_id(layout)
+    comparisons = _comparisons_by_id(layout)
+    warnings: List[str] = []
+    lines = [
+        "# Experiment Summary",
+        "",
+        f"- Scope: {scope_type}",
+        f"- Scope ID: {scope_id or 'project'}",
+        f"- Experiment Run Count: {len(runs)}",
+        "",
+        "## Runs",
+    ]
+    if not runs:
+        warnings.append("Experiment runs unavailable")
+        lines.append("- No experiment runs are available for this scope.")
+    for run in runs:
+        request = requests.get(run.get("experiment_request_id"), {})
+        review = reviews.get(run.get("experiment_run_id"))
+        lines.extend(
+            [
+                f"### {request.get('title') or run.get('experiment_run_id')}",
+                f"- Experiment Run ID: {run.get('experiment_run_id')}",
+                f"- Experiment Request ID: {run.get('experiment_request_id')}",
+                f"- Status: {run.get('status')}",
+                f"- Task: {run.get('task_id')}",
+                f"- Requester: {request.get('requester_slot_id', 'unknown')}",
+                f"- Executor: {request.get('executor_slot_id', 'unknown')}",
+                f"- Reviewer: {request.get('reviewer_slot_id', 'unknown')}",
+                f"- Published Artifacts: {', '.join(run.get('published_artifact_ids') or []) or 'none'}",
+            ]
+        )
+        if review:
+            lines.extend(
+                [
+                    f"- Review Outcome: {review.get('outcome')}",
+                    f"- Review Artifact: {review.get('review_artifact_id')}",
+                    f"- Follow-Up Task: {review.get('follow_up_task_id') or 'none'}",
+                ]
+            )
+        else:
+            lines.append("- Review Outcome: pending")
+        comparison_lines = []
+        for comparison_id in run.get("comparison_ids") or []:
+            comparison = comparisons.get(comparison_id)
+            if comparison:
+                comparison_lines.append(f"{comparison_id} ({comparison.get('status')})")
+        lines.append(f"- Comparisons: {', '.join(comparison_lines) or 'none'}")
+        lines.append("")
     return "\n".join(lines) + "\n", warnings
 
 
@@ -519,7 +614,7 @@ def _generate_report_locked(
     elif report_type == "literature_review":
         content, warnings = _render_literature_review_report(layout, scope_type, scope_id)
     elif report_type == "experiment_summary":
-        content, warnings = _render_unimplemented_stage_report(report_type, scope_type, scope_id)
+        content, warnings = _render_experiment_summary_report(layout, scope_type, scope_id)
     else:
         content, warnings = _render_final_package(layout)
 

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-agent-team.local/schemas/commands/review-experiment.schema.json",
+  "title": "ReviewExperimentCommand",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["root_path", "experiment_run_id", "reviewer_slot_id", "outcome", "decision_summary"],
+  "properties": {
+    "root_path": {"type": "string"},
+    "experiment_run_id": {"type": "string"},
+    "reviewer_slot_id": {"type": "string"},
+    "outcome": {"type": "string", "enum": ["accepted", "needs_follow_up"]},
+    "decision_summary": {"type": "string"},
+    "follow_up_owner_slot_id": {"type": "string"},
+    "follow_up_title": {"type": "string"},
+    "follow_up_description": {"type": "string"},
+    "follow_up_success_criteria": {"type": "array", "items": {"type": "string"}}
+  }
+}

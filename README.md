@@ -29,7 +29,7 @@ ResearchAgentTeam is designed to be useful in day-to-day research work:
 - Filesystem-first outputs: reports, notes, experiment artifacts, and shared materials stay on disk where they can be reviewed directly.
 - Clear task flow: work is assigned explicitly, reviewed explicitly, and tracked as part of the project.
 - Knowledge accumulation: raw materials can be turned into reusable wiki-style knowledge outputs.
-- Experiment support: experiment requests, outputs, and follow-up work are planned for the next roadmap stage.
+- Experiment support: experiment requests, outputs, review decisions, and follow-up work stay connected to normal task flow.
 - Better visibility: status reports and final reports make it easier to see what has happened and what should happen next.
 
 ## What You Can Do
@@ -60,7 +60,7 @@ Common user-facing outputs include:
 - `shared/reports/final-package-latest.md`: latest final report package
 - `shared/wiki/`: compiled knowledge pages
 - `shared/graph/`: graph outputs and summaries
-- `experiments/runs/`: reserved for saved experiment outputs in the experiment stage
+- `experiments/runs/`: saved experiment outputs, summaries, comparisons, and publish manifests
 
 ## Getting Started
 
@@ -216,7 +216,30 @@ rebuild_graph_command(
 
 #### Run and review an experiment
 
-Experiment commands are reserved for the next roadmap stage.
+```bash
+python plugins/research-agent-team/scripts/rat_plugin_cli.py command run_experiment --payload-json '{
+  "root_path": "/absolute/project",
+  "requester_slot_id": "senior-01",
+  "executor_slot_id": "junior-01",
+  "title": "Evaluate baseline",
+  "objective": "Measure baseline behavior on the fixture task.",
+  "hypothesis": "The baseline produces repeatable evidence.",
+  "method": "Run the local-file experiment adapter once and publish outputs.",
+  "success_criteria": ["Publish a reviewable evidence package"],
+  "input_artifact_ids": [],
+  "input_path_roots": ["shared/raw"],
+  "expected_output_types": ["json", "markdown"],
+  "run_parameters": {"variant": "baseline"}
+}'
+
+python plugins/research-agent-team/scripts/rat_plugin_cli.py command review_experiment --payload-json '{
+  "root_path": "/absolute/project",
+  "experiment_run_id": "experiment-run-id",
+  "reviewer_slot_id": "senior-01",
+  "outcome": "accepted",
+  "decision_summary": "Evidence is sufficient for the next milestone."
+}'
+```
 
 #### Generate status and final reports
 
@@ -246,6 +269,7 @@ The current commands cover these user workflows:
 - add and retire team roles
 - assign work and review progress
 - sync knowledge and rebuild graph outputs
+- run experiments, review evidence, and create follow-up tasks
 - generate status reports and final packages
 
 ## Current Availability

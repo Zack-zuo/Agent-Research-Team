@@ -61,7 +61,7 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
         self.assertTrue(skills_path.exists())
         self.assertTrue(skills_path == PLUGIN_ROOT.resolve() or PLUGIN_ROOT.resolve() in skills_path.parents)
 
-    def test_cli_exposes_command_surface_and_reserved_later_stage_stubs(self) -> None:
+    def test_cli_exposes_command_surface_and_stage6_runtime_handlers(self) -> None:
         top_level_help = self.run_plugin_script("--help")
         self.assertIn("usage:", top_level_help.stdout)
 
@@ -69,12 +69,13 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
         self.assertIn("create_project", command_help.stdout)
         self.assertIn("assign_task", command_help.stdout)
         self.assertIn("rebuild_graph", command_help.stdout)
+        self.assertIn("run_experiment", command_help.stdout)
+        self.assertIn("review_experiment", command_help.stdout)
 
         known = self.run_plugin_script("command", "run_experiment", "--payload-json", "{}", check=False)
         self.assertEqual(known.returncode, 1)
         payload = json.loads(known.stdout)
-        self.assertEqual(payload["error"]["code"], "not_implemented")
-        self.assertEqual(payload["error"]["command"], "run_experiment")
+        self.assertNotEqual(payload["error"]["code"], "not_implemented")
 
         unknown = self.run_plugin_script("command", "not_a_command", "--payload-json", "{}", check=False)
         self.assertNotEqual(unknown.returncode, 0)

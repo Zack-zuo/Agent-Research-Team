@@ -47,7 +47,7 @@ class RatPluginCliTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
 
-    def test_help_and_reserved_later_stage_commands_do_not_import_runtime_dependencies(self) -> None:
+    def test_help_does_not_import_runtime_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             poison_dir = Path(tmpdir)
             (poison_dir / "yaml.py").write_text(
@@ -67,20 +67,7 @@ class RatPluginCliTests(unittest.TestCase):
             self.assertEqual(help_result.returncode, 0, help_result.stderr)
             self.assertIn("usage:", help_result.stdout)
 
-            reserved_result = subprocess.run(
-                [sys.executable, str(SCRIPT), "command", "run_experiment", "--payload-json", json.dumps({})],
-                cwd=PLUGIN_ROOT,
-                env=env,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(reserved_result.returncode, 1)
-            payload = json.loads(reserved_result.stdout)
-            self.assertEqual(payload["error"]["code"], "not_implemented")
-            self.assertEqual(payload["error"]["command"], "run_experiment")
-            self.assertNotIn("yaml import should be lazy", reserved_result.stderr)
-
-    def test_stage4_and_stage5_commands_are_routed_to_runtime_handlers(self) -> None:
+    def test_stage4_stage5_and_stage6_commands_are_routed_to_runtime_handlers(self) -> None:
         for command_name in [
             "approve_checkpoint",
             "reject_checkpoint",
@@ -88,6 +75,8 @@ class RatPluginCliTests(unittest.TestCase):
             "generate_report",
             "sync_knowledge_base",
             "rebuild_graph",
+            "run_experiment",
+            "review_experiment",
         ]:
             result = subprocess.run(
                 [sys.executable, str(SCRIPT), "command", command_name, "--payload-json", json.dumps({})],

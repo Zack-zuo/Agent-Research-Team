@@ -73,6 +73,22 @@ class ProjectLayout:
         _validate_slot_id(slot_id)
         return self.state_dir / "checkpoints" / f"{slot_id}.json"
 
+    def experiment_request_state_path(self, experiment_request_id: str) -> Path:
+        _validate_slot_id(experiment_request_id)
+        return self.state_dir / "experiments" / "requests" / f"{experiment_request_id}.json"
+
+    def experiment_run_state_path(self, experiment_run_id: str) -> Path:
+        _validate_slot_id(experiment_run_id)
+        return self.state_dir / "experiments" / "runs" / f"{experiment_run_id}.json"
+
+    def experiment_comparison_state_path(self, comparison_id: str) -> Path:
+        _validate_slot_id(comparison_id)
+        return self.state_dir / "experiments" / "comparisons" / f"{comparison_id}.json"
+
+    def experiment_review_state_path(self, review_id: str) -> Path:
+        _validate_slot_id(review_id)
+        return self.state_dir / "experiments" / "reviews" / f"{review_id}.json"
+
     def slot_root(self, slot_id: str) -> Path:
         _validate_slot_id(slot_id)
         return self.root / "agents" / slot_id
@@ -87,6 +103,14 @@ class ProjectLayout:
     def slot_checkpoint_root(self, slot_id: str, checkpoint_id: str) -> Path:
         _validate_slot_id(checkpoint_id)
         return self.slot_root(slot_id) / "checkpoints" / checkpoint_id
+
+    def experiment_queue_root(self, experiment_request_id: str) -> Path:
+        _validate_slot_id(experiment_request_id)
+        return self.root / "experiments" / "queue" / experiment_request_id
+
+    def experiment_run_root(self, experiment_run_id: str) -> Path:
+        _validate_slot_id(experiment_run_id)
+        return self.root / "experiments" / "runs" / experiment_run_id
 
     def project_relative_path(self, relative_path: str) -> Path:
         candidate = Path(relative_path)

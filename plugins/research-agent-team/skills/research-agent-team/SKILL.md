@@ -14,8 +14,10 @@ Stage 4 governance services enforce artifact visibility, write activation
 permission manifests, replay approval decisions, generate status/report
 artifacts, and rebuild slot inbox/outbox views. Stage 5 services sync
 slot-local and project knowledge into Markdown wiki outputs, rebuild local-file
-graph exports, and degrade safely when graph adapters are disabled. Experiment
-workflows are added by a later roadmap stage.
+graph exports, and degrade safely when graph adapters are disabled. Stage 6
+experiment services run senior-defined, junior-executed experiment tasks,
+publish local-file evidence packages, write comparison/review artifacts, and
+create follow-up work through the normal task flow.
 
 ## Command Bridge
 
@@ -31,11 +33,9 @@ From a source checkout, use the plugin-local wrapper:
 python scripts/rat_plugin_cli.py command open_project --payload-json '{"root_path":"/absolute/project"}'
 ```
 
-Project lifecycle, topology, `assign_task`, approval decisions, status,
-report, knowledge, and graph commands delegate to application services and
-return structured JSON. Experiment commands still return structured
-`not_implemented` responses until their roadmap stage attaches business
-services.
+Project lifecycle, topology, `assign_task`, experiment, approval decisions,
+status, report, knowledge, and graph commands delegate to application services
+and return structured JSON.
 
 ## Launch Requests
 

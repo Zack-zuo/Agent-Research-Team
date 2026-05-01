@@ -4,7 +4,7 @@
   "title": "RunExperimentCommand",
   "type": "object",
   "additionalProperties": true,
-  "required": ["root_path", "requester_slot_id", "title", "objective", "method"],
+  "required": ["root_path", "requester_slot_id", "title", "objective", "method", "success_criteria"],
   "properties": {
     "root_path": {"type": "string"},
     "requester_slot_id": {"type": "string"},
@@ -13,7 +13,12 @@
     "objective": {"type": "string"},
     "hypothesis": {"type": "string"},
     "method": {"type": "string"},
-    "success_criteria": {"type": "array", "items": {"type": "string"}},
-    "run_parameters": {"type": "object"}
+    "success_criteria": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "input_artifact_ids": {"type": "array", "items": {"type": "string"}},
+    "input_path_roots": {"type": "array", "items": {"type": "string"}},
+    "expected_output_types": {"type": "array", "items": {"type": "string"}},
+    "run_parameters": {"type": "object"},
+    "compare_run_ids": {"type": "array", "items": {"type": "string"}},
+    "budget_override": {"type": "object"}
   }
 }
