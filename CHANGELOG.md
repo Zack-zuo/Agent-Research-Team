@@ -1,5 +1,11 @@
 # Changelog
 
+## M8 - Stage 7
+
+- added shared health preflight for schema preparation, support-surface repair, adapter health normalization, integrity validation, stale recovery entrypoints, and warning-rich command results
+- added audited `0.1.0 -> 0.2.0` migration records with backups, fail-fast unsupported-schema handling, and best-effort hook delivery with diagnostic logs
+- completed operator contracts, runbooks, release hardening, package-build validation, and aligned plugin version metadata at `0.2.0`
+
 ## M7 - Stage 6
 
 - implemented `run_experiment` and `review_experiment` for senior-defined, junior-executed experiment workflows with normal task admission, activation bundles, budget approvals, and follow-up task creation

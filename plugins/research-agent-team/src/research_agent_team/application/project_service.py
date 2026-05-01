@@ -57,7 +57,8 @@ def emit_event(
     task_id: str = None,
     activation_id: str = None,
     approval_id: str = None,
-) -> None:
+    dispatch_hooks: bool = False,
+) -> List[str]:
     timestamp = now_utc()
     event = Event(
         event_id=new_id("event"),
@@ -71,6 +72,11 @@ def emit_event(
         payload=payload,
     )
     append_jsonl(_event_path(layout, timestamp), event.to_dict())
+    if not dispatch_hooks:
+        return []
+    from research_agent_team.application.hook_service import dispatch_event_hooks
+
+    return dispatch_event_hooks(layout, event)
 
 
 def _write_slot(layout: ProjectLayout, slot: AgentSlot) -> None:
@@ -203,7 +209,13 @@ def _recent_artifacts(layout: ProjectLayout, limit: int = 10) -> List[Dict[str, 
     return artifacts
 
 
-def _open_result(layout: ProjectLayout, project: ResearchProject, warnings: List[str], recovery: Dict[str, int] = None) -> Dict[str, Any]:
+def _open_result(
+    layout: ProjectLayout,
+    project: ResearchProject,
+    warnings: List[str],
+    recovery: Dict[str, int] = None,
+    preparation: Any = None,
+) -> Dict[str, Any]:
     topology = load_topology(layout)
     slots = read_all_slots(layout)
     task_counts = _task_counts(layout)
@@ -218,6 +230,8 @@ def _open_result(layout: ProjectLayout, project: ResearchProject, warnings: List
         "recent_artifacts": _recent_artifacts(layout),
         "adapter_health": adapter_health,
         "recovery": recovery or {"recovered_activation_count": 0, "requeued_task_count": 0, "blocked_task_count": 0},
+        "migration_performed": bool(getattr(preparation, "migration_performed", False)),
+        "previous_schema_version": getattr(preparation, "previous_schema_version", None),
     }
 
 
@@ -334,16 +348,16 @@ def open_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
-        topology = load_topology(layout)
-        warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         recovery = recover_stale_activations_locked(layout)
         from research_agent_team.application.reporting_service import rebuild_slot_views
 
         rebuild_slot_views(layout)
-        return _open_result(layout, project, warnings, recovery)
+        return _open_result(layout, project, preparation.warnings, recovery, preparation)
 
 
 def switch_operating_mode(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -356,12 +370,21 @@ def switch_operating_mode(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         project.operating_mode = operating_mode
         project.updated_at = now_utc()
         _write_project(layout, project)
-        emit_event(layout, project.project_id, "project.mode_switched", {"operating_mode": operating_mode.value})
-        return {"project": _project_summary(project), "warnings": []}
+        hook_warnings = emit_event(
+            layout,
+            project.project_id,
+            "project.mode_switched",
+            {"operating_mode": operating_mode.value},
+            dispatch_hooks=True,
+        )
+        return {"project": _project_summary(project), "warnings": preparation.warnings + hook_warnings}
 
 
 def pause_project(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -369,17 +392,17 @@ def pause_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
-        topology = load_topology(layout)
-        warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         recovery = recover_stale_activations_locked(layout)
         project.status = ProjectStatus.PAUSED
         project.updated_at = now_utc()
         _write_project(layout, project)
-        emit_event(layout, project.project_id, "project.paused", {})
-        return {"project": _project_summary(project), "recovery": recovery, "warnings": warnings}
+        hook_warnings = emit_event(layout, project.project_id, "project.paused", {}, dispatch_hooks=True)
+        return {"project": _project_summary(project), "recovery": recovery, "warnings": preparation.warnings + hook_warnings}
 
 
 def resume_project(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -387,12 +410,13 @@ def resume_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.activation_service import _admit_next_task_if_possible_locked
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         topology = load_topology(layout)
-        warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         recovery = recover_stale_activations_locked(layout)
         project.status = ProjectStatus.ACTIVE
         project.updated_at = now_utc()
@@ -403,11 +427,17 @@ def resume_project(payload: Dict[str, Any]) -> Dict[str, Any]:
             launch_request = _admit_next_task_if_possible_locked(layout, project.status, slot)
             if launch_request is not None:
                 launch_requests.append(launch_request)
-        emit_event(layout, project.project_id, "project.resumed", {"admitted_task_count": len(launch_requests)})
+        hook_warnings = emit_event(
+            layout,
+            project.project_id,
+            "project.resumed",
+            {"admitted_task_count": len(launch_requests)},
+            dispatch_hooks=True,
+        )
         return {
             "project": _project_summary(project),
             "admitted_task_count": len(launch_requests),
             "launch_requests": launch_requests,
             "recovery": recovery,
-            "warnings": warnings,
+            "warnings": preparation.warnings + hook_warnings,
         }

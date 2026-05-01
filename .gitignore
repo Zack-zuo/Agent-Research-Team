@@ -8,5 +8,13 @@ __pycache__/
 .venv/
 .worktrees/
 worktrees/
-/docs/
 dist/
+docs/PRD.md
+docs/adr/
+docs/architecture/
+docs/canonical-repository-architecture.md
+docs/canonical-repository-architecture.zh-CN.md
+docs/development-roadmap.md
+docs/development-roadmap.zh-CN.md
+docs/implementation-spec-v1.md
+docs/implementation-spec-v1.zh-CN.md

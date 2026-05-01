@@ -70,7 +70,7 @@ class Phase1MonorepoBackfillTests(unittest.TestCase):
         self.assertTrue(gitignore_path.exists())
 
         text = gitignore_path.read_text(encoding="utf-8")
-        self.assertIn("/docs/", text)
+        self.assertNotIn("/docs/", text)
         self.assertIn(".env", text)
         self.assertIn(".worktrees/", text)
 

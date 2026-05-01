@@ -621,14 +621,21 @@ def _generate_report_locked(
     written = _write_report(layout, report_type, content)
     rebuild_slot_views(layout)
     project = load_project(layout)
-    emit_event(layout, project.project_id, "report.generated", {"report_type": report_type, "path": written["report_path"]}, slot_id="supervisor")
+    hook_warnings = emit_event(
+        layout,
+        project.project_id,
+        "report.generated",
+        {"report_type": report_type, "path": written["report_path"]},
+        slot_id="supervisor",
+        dispatch_hooks=True,
+    )
     return {
         "generated": True,
         "report_type": report_type,
         "scope_type": scope_type,
         "scope_id": scope_id,
         "pending_approval": None,
-        "warnings": warnings,
+        "warnings": warnings + hook_warnings,
         **written,
     }
 
@@ -636,17 +643,35 @@ def _generate_report_locked(
 def request_status(payload: Dict[str, Any]) -> Dict[str, Any]:
     layout = _layout_from_payload(payload)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
-        topology = load_topology(layout)
-        warnings = ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         recovery = recover_stale_activations_locked(layout)
         rebuild_slot_views(layout)
-        snapshot = _status_snapshot(layout, warnings, recovery)
+        snapshot = _status_snapshot(layout, preparation.warnings, recovery)
         content = _render_status_report(snapshot)
         written = _write_report(layout, "status", content)
-        emit_event(layout, project.project_id, "status.requested", {"path": written["report_path"]}, slot_id="supervisor")
+        hook_warnings = emit_event(
+            layout,
+            project.project_id,
+            "report.generated",
+            {"report_type": "status", "path": written["report_path"]},
+            slot_id="supervisor",
+            dispatch_hooks=True,
+        )
+        hook_warnings.extend(
+            emit_event(
+                layout,
+                project.project_id,
+                "status.requested",
+                {"path": written["report_path"]},
+                slot_id="supervisor",
+                dispatch_hooks=True,
+            )
+        )
+        snapshot["warnings"] = snapshot["warnings"] + hook_warnings
         return {**snapshot, **written}
 
 
@@ -660,10 +685,15 @@ def generate_report(payload: Dict[str, Any]) -> Dict[str, Any]:
     if scope_id is not None and not isinstance(scope_id, str):
         raise CommandError("invalid_payload", "scope_id must be a string", field="scope_id")
     with project_lock(layout.lock_path):
-        return _generate_report_locked(
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
+        result = _generate_report_locked(
             layout,
             report_type=report_type,
             scope_type=scope_type,
             scope_id=scope_id,
             allow_pending_approval=True,
         )
+        result["warnings"] = preparation.warnings + result.get("warnings", [])
+        return result

@@ -46,16 +46,40 @@ class ProjectLayout:
         return self.state_dir / "hooks" / "config.json"
 
     @property
+    def hook_logs_dir(self) -> Path:
+        return self.root / "logs" / "hooks"
+
+    @property
     def events_dir(self) -> Path:
         return self.state_dir / "events"
+
+    @property
+    def messages_dir(self) -> Path:
+        return self.state_dir / "messages"
 
     @property
     def artifact_index(self) -> Path:
         return self.state_dir / "artifacts" / "index.jsonl"
 
     @property
+    def migration_records_dir(self) -> Path:
+        return self.state_dir / "migrations" / "records"
+
+    @property
+    def migration_backups_dir(self) -> Path:
+        return self.state_dir / "migrations" / "backups"
+
+    @property
     def lock_path(self) -> Path:
         return self.state_dir / "locks" / "project.lock"
+
+    def migration_backup_root(self, migration_id: str) -> Path:
+        _validate_slot_id(migration_id)
+        return self.migration_backups_dir / migration_id
+
+    def migration_record_path(self, migration_id: str) -> Path:
+        _validate_slot_id(migration_id)
+        return self.migration_records_dir / f"{migration_id}.json"
 
     def slot_state_path(self, slot_id: str) -> Path:
         _validate_slot_id(slot_id)

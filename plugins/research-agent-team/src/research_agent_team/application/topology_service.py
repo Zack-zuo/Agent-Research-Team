@@ -181,8 +181,15 @@ def _apply_add_senior_locked(layout: ProjectLayout, project: Any, topology: Any,
     layout.create_slot_layout(slot.slot_id)
     write_json_atomic(layout.state_dir / "knowledge" / "slots" / f"{slot.slot_id}.json", default_knowledge_state("slot", slot.slot_id))
     _write_topology_state(layout, topology, slots, timestamp)
-    emit_event(layout, project.project_id, "topology.senior_added", {"slot_id": slot.slot_id}, slot_id=slot.slot_id)
-    return _mutation_result(project, topology, slots, slot)
+    hook_warnings = emit_event(
+        layout,
+        project.project_id,
+        "topology.senior_added",
+        {"slot_id": slot.slot_id},
+        slot_id=slot.slot_id,
+        dispatch_hooks=True,
+    )
+    return _mutation_result(project, topology, slots, slot, warnings=hook_warnings)
 
 
 def _apply_add_junior_locked(
@@ -220,8 +227,15 @@ def _apply_add_junior_locked(
     layout.create_slot_layout(slot.slot_id)
     write_json_atomic(layout.state_dir / "knowledge" / "slots" / f"{slot.slot_id}.json", default_knowledge_state("slot", slot.slot_id))
     _write_topology_state(layout, topology, slots, timestamp)
-    emit_event(layout, project.project_id, "topology.junior_added", {"slot_id": slot.slot_id, "parent_slot_id": parent_slot_id}, slot_id=slot.slot_id)
-    return _mutation_result(project, topology, slots, slot)
+    hook_warnings = emit_event(
+        layout,
+        project.project_id,
+        "topology.junior_added",
+        {"slot_id": slot.slot_id, "parent_slot_id": parent_slot_id},
+        slot_id=slot.slot_id,
+        dispatch_hooks=True,
+    )
+    return _mutation_result(project, topology, slots, slot, warnings=hook_warnings)
 
 
 def _validate_retirement(slots: Dict[str, AgentSlot], topology: Any, slot_id: str, expected_role: SlotRole, command_name: str) -> AgentSlot:
@@ -263,16 +277,27 @@ def _apply_retire_slot_locked(
     if slot_id not in topology.retired_slot_ids:
         topology.retired_slot_ids.append(slot_id)
     _write_topology_state(layout, topology, slots, timestamp)
-    emit_event(layout, project.project_id, f"topology.{command_name}", {"slot_id": slot_id}, slot_id=slot_id)
-    return _mutation_result(project, topology, slots, slot)
+    hook_warnings = emit_event(
+        layout,
+        project.project_id,
+        f"topology.{command_name}",
+        {"slot_id": slot_id},
+        slot_id=slot_id,
+        dispatch_hooks=True,
+    )
+    return _mutation_result(project, topology, slots, slot, warnings=hook_warnings)
 
 
 def show_team_topology(payload: Dict[str, Any]) -> Dict[str, Any]:
     layout = _layout_from_payload(payload)
-    project = load_project(layout)
-    topology = load_topology(layout)
-    slots = read_all_slots(layout)
-    return {"project": _project_summary(project), "topology": _topology_summary(topology, slots), "warnings": []}
+    with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
+        project = load_project(layout)
+        topology = load_topology(layout)
+        slots = read_all_slots(layout)
+        return {"project": _project_summary(project), "topology": _topology_summary(topology, slots), "warnings": preparation.warnings}
 
 
 def add_senior(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -280,6 +305,9 @@ def add_senior(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         topology = load_topology(layout)
         slots = read_all_slots(layout)
@@ -292,7 +320,7 @@ def add_senior(payload: Dict[str, Any]) -> Dict[str, Any]:
         slot_id = _next_slot_id(slots, "senior", _reserved_slot_ids(layout))
         if _staffing_requires_approval(staffing):
             slot = _new_slot(slot_id, SlotRole.SENIOR_PHD, "supervisor", now_utc())
-            return _pending_staffing_result(
+            result = _pending_staffing_result(
                 layout,
                 project,
                 topology,
@@ -302,7 +330,11 @@ def add_senior(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "Staffing approval required before adding senior slot.",
                 {"preallocated_slot_id": slot_id},
             )
-        return _apply_add_senior_locked(layout, project, topology, slots, slot_id)
+            result["warnings"] = preparation.warnings + result.get("warnings", [])
+            return result
+        result = _apply_add_senior_locked(layout, project, topology, slots, slot_id)
+        result["warnings"] = preparation.warnings + result.get("warnings", [])
+        return result
 
 
 def add_junior(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -311,6 +343,9 @@ def add_junior(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         topology = load_topology(layout)
         slots = read_all_slots(layout)
@@ -335,7 +370,7 @@ def add_junior(payload: Dict[str, Any]) -> Dict[str, Any]:
         slot_id = _next_slot_id(slots, "junior", _reserved_slot_ids(layout))
         if _staffing_requires_approval(staffing):
             slot = _new_slot(slot_id, SlotRole.JUNIOR_PHD, parent_slot_id, now_utc())
-            return _pending_staffing_result(
+            result = _pending_staffing_result(
                 layout,
                 project,
                 topology,
@@ -345,7 +380,11 @@ def add_junior(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "Staffing approval required before adding junior slot.",
                 {"parent_slot_id": parent_slot_id, "preallocated_slot_id": slot_id},
             )
-        return _apply_add_junior_locked(layout, project, topology, slots, parent_slot_id, slot_id)
+            result["warnings"] = preparation.warnings + result.get("warnings", [])
+            return result
+        result = _apply_add_junior_locked(layout, project, topology, slots, parent_slot_id, slot_id)
+        result["warnings"] = preparation.warnings + result.get("warnings", [])
+        return result
 
 
 def _retire_slot(payload: Dict[str, Any], expected_role: SlotRole, command_name: str) -> Dict[str, Any]:
@@ -354,6 +393,9 @@ def _retire_slot(payload: Dict[str, Any], expected_role: SlotRole, command_name:
     if not layout.project_state.exists():
         load_project(layout)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         topology = load_topology(layout)
         slots = read_all_slots(layout)
@@ -361,7 +403,7 @@ def _retire_slot(payload: Dict[str, Any], expected_role: SlotRole, command_name:
         staffing = load_staffing_policy(layout)
         if _staffing_requires_approval(staffing):
             scope_type = ApprovalScopeType.RETIRE_SENIOR if expected_role == SlotRole.SENIOR_PHD else ApprovalScopeType.RETIRE_JUNIOR
-            return _pending_staffing_result(
+            result = _pending_staffing_result(
                 layout,
                 project,
                 topology,
@@ -371,7 +413,11 @@ def _retire_slot(payload: Dict[str, Any], expected_role: SlotRole, command_name:
                 f"Staffing approval required before retiring {slot_id}.",
                 {"slot_id": slot_id},
             )
-        return _apply_retire_slot_locked(layout, project, topology, slots, slot_id, expected_role, command_name)
+            result["warnings"] = preparation.warnings + result.get("warnings", [])
+            return result
+        result = _apply_retire_slot_locked(layout, project, topology, slots, slot_id, expected_role, command_name)
+        result["warnings"] = preparation.warnings + result.get("warnings", [])
+        return result
 
 
 def retire_senior(payload: Dict[str, Any]) -> Dict[str, Any]:

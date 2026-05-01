@@ -32,6 +32,9 @@ The package provides:
 - Stage 6 experiment commands for senior-defined, junior-executed experiment
   requests, local-file run publication, comparison outputs, review artifacts,
   and follow-up task creation
+- Stage 7 hardening for command preflight, supported schema migration, adapter
+  health normalization, best-effort hook delivery, integrity validation, and
+  release packaging checks
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
@@ -45,6 +48,7 @@ Run these from the monorepo root:
 ```bash
 bash scripts/validate-release-boundary.sh
 bash scripts/smoke-test-plugin.sh
+bash scripts/package-plugin.sh
 python plugins/research-agent-team/scripts/validate_manifest.py
 python plugins/research-agent-team/scripts/validate_schemas.py
 ```

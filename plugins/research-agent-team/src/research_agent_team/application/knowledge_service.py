@@ -366,9 +366,10 @@ def sync_knowledge_base(payload: Dict[str, Any]) -> Dict[str, Any]:
     scope_id = _optional_string(payload, "scope_id")
 
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
-        topology = load_topology(layout)
-        ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         timestamp = now_utc()
         if scope_type == "slot":
             if scope_id is None:
@@ -399,12 +400,13 @@ def sync_knowledge_base(payload: Dict[str, Any]) -> Dict[str, Any]:
                 timestamp=timestamp,
             )
 
-        emit_event(
+        hook_warnings = emit_event(
             layout,
             project.project_id,
             "knowledge.synced",
             {"scope_type": scope_type, "scope_id": scope_id, "mode": mode, "compiled_count": len(compiled_artifacts)},
             slot_id=scope_id if scope_type == "slot" else "supervisor",
+            dispatch_hooks=True,
         )
         return {
             "synced": True,
@@ -415,5 +417,5 @@ def sync_knowledge_base(payload: Dict[str, Any]) -> Dict[str, Any]:
             "compiled_count": len(compiled_artifacts),
             "compiled_artifacts": compiled_artifacts,
             "graph_dirty": state["graph_dirty"],
-            "warnings": [],
+            "warnings": preparation.warnings + hook_warnings,
         }

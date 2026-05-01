@@ -235,12 +235,15 @@ def _decide_checkpoint(payload: Dict[str, Any], *, approved: bool) -> Dict[str, 
     approval_id = _require_string(payload, "approval_id")
     decision_summary = _decision_summary(payload)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         approval = load_approval(layout, approval_id)
         if approval.get("status") != ApprovalStatus.PENDING.value:
             raise CommandError("approval_not_pending", "Only pending approvals can be decided", approval_id=approval_id)
 
         scope_type = approval.get("scope_type")
-        warnings = []
+        warnings = list(preparation.warnings)
         if scope_type == ApprovalScopeType.TASK_BUDGET_OVERRIDE.value:
             replay = _decide_budget_override(layout, approval, approved)
         elif scope_type == ApprovalScopeType.GENERATE_REPORT.value:
@@ -263,14 +266,17 @@ def _decide_checkpoint(payload: Dict[str, Any], *, approved: bool) -> Dict[str, 
         write_approval(layout, approval)
 
         project = load_project(layout)
-        emit_event(
-            layout,
-            project.project_id,
-            "approval.decided",
-            {"status": approval["status"], "applied": bool(replay["applied"])},
-            approval_id=approval["approval_id"],
-            task_id=replay.get("affected_task_id"),
-            slot_id=replay.get("affected_slot_id"),
+        warnings.extend(
+            emit_event(
+                layout,
+                project.project_id,
+                "approval.decided",
+                {"status": approval["status"], "applied": bool(replay["applied"])},
+                approval_id=approval["approval_id"],
+                task_id=replay.get("affected_task_id"),
+                slot_id=replay.get("affected_slot_id"),
+                dispatch_hooks=True,
+            )
         )
 
         from research_agent_team.application.reporting_service import rebuild_slot_views

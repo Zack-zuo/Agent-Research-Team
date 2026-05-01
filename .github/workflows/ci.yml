@@ -33,3 +33,6 @@ jobs:
 
       - name: Smoke test plugin CLI
         run: bash scripts/smoke-test-plugin.sh
+
+      - name: Build plugin package artifact
+        run: bash scripts/package-plugin.sh

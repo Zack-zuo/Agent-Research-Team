@@ -597,3 +597,92 @@ class Event:
             "approval_id": self.approval_id,
             "payload": dict(self.payload),
         }
+
+
+@dataclass
+class HookSubscriber:
+    subscriber_id: str
+    enabled: bool
+    event_types: List[str]
+    command_argv: List[str]
+    working_directory: Optional[str] = None
+    timeout_seconds: int = 10
+
+    def __post_init__(self) -> None:
+        self.event_types = _string_list(self.event_types)
+        self.command_argv = _string_list(self.command_argv)
+        if not self.subscriber_id.strip():
+            raise ValueError("subscriber_id is required")
+        if not self.event_types:
+            raise ValueError("hook subscribers require at least one event type")
+        if not self.command_argv:
+            raise ValueError("hook subscribers require command_argv")
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "subscriber_id": self.subscriber_id,
+            "enabled": bool(self.enabled),
+            "event_types": list(self.event_types),
+            "command_argv": list(self.command_argv),
+            "working_directory": self.working_directory,
+            "timeout_seconds": self.timeout_seconds,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "HookSubscriber":
+        return cls(
+            subscriber_id=payload["subscriber_id"],
+            enabled=bool(payload.get("enabled", True)),
+            event_types=payload.get("event_types", []),
+            command_argv=payload.get("command_argv", []),
+            working_directory=payload.get("working_directory"),
+            timeout_seconds=int(payload.get("timeout_seconds", 10)),
+        )
+
+
+@dataclass
+class HookConfig:
+    subscribers: List[HookSubscriber] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.subscribers = [
+            subscriber if isinstance(subscriber, HookSubscriber) else HookSubscriber.from_dict(subscriber)
+            for subscriber in self.subscribers
+        ]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"subscribers": [subscriber.to_dict() for subscriber in self.subscribers]}
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "HookConfig":
+        return cls(subscribers=payload.get("subscribers", []))
+
+
+@dataclass
+class MigrationRecord:
+    migration_id: str
+    project_id: str
+    from_schema_version: str
+    to_schema_version: str
+    status: str
+    backup_root: str
+    mutated_paths: List[str]
+    warnings: List[str]
+    started_at: str
+    completed_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "migration_id": self.migration_id,
+            "project_id": self.project_id,
+            "from_schema_version": self.from_schema_version,
+            "to_schema_version": self.to_schema_version,
+            "status": self.status,
+            "backup_root": self.backup_root,
+            "mutated_paths": list(self.mutated_paths),
+            "warnings": list(self.warnings),
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+        }

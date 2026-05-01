@@ -191,8 +191,10 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
     review_requirement = _optional_review_requirement(payload)
 
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         topology = load_topology(layout)
         recovery = recover_stale_activations_locked(layout, target_slot_ids={owner_slot_id})
@@ -234,6 +236,7 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         pending_approval = None
         launch_request = None
+        hook_warnings: List[str] = []
         budget_policy = read_json(layout.state_dir / "policies" / "budget.json")
         if budget_override and bool(budget_policy.get("requires_approval_for_override", True)):
             task.status = TaskStatus.AWAITING_APPROVAL
@@ -246,14 +249,17 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
             owner.updated_at = timestamp
             _write_slot(layout, owner)
             pending_approval = _approval_summary(approval)
-            emit_event(
-                layout,
-                project.project_id,
-                "task.awaiting_approval",
-                {"scope_type": ApprovalScopeType.TASK_BUDGET_OVERRIDE.value},
-                slot_id=owner.slot_id,
-                task_id=task.task_id,
-                approval_id=approval["approval_id"],
+            hook_warnings.extend(
+                emit_event(
+                    layout,
+                    project.project_id,
+                    "task.awaiting_approval",
+                    {"scope_type": ApprovalScopeType.TASK_BUDGET_OVERRIDE.value},
+                    slot_id=owner.slot_id,
+                    task_id=task.task_id,
+                    approval_id=approval["approval_id"],
+                    dispatch_hooks=True,
+                )
             )
         else:
             _write_task(layout, task)
@@ -262,14 +268,17 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
             _write_slot(layout, owner)
             launch_request = _admit_next_task_if_possible_locked(layout, project.status, owner)
 
-        emit_event(
-            layout,
-            project.project_id,
-            "task.created",
-            {"requester_slot_id": requester_slot_id, "title": title},
-            slot_id=owner.slot_id,
-            task_id=task.task_id,
-            approval_id=task.current_approval_id,
+        hook_warnings.extend(
+            emit_event(
+                layout,
+                project.project_id,
+                "task.created",
+                {"requester_slot_id": requester_slot_id, "title": title},
+                slot_id=owner.slot_id,
+                task_id=task.task_id,
+                approval_id=task.current_approval_id,
+                dispatch_hooks=True,
+            )
         )
 
         from research_agent_team.application.reporting_service import rebuild_slot_views
@@ -285,5 +294,5 @@ def assign_task(payload: Dict[str, Any]) -> Dict[str, Any]:
             "owner_queue_depth": len(owner.queued_task_ids),
             "pending_approval": pending_approval,
             "recovery": recovery,
-            "warnings": [],
+            "warnings": preparation.warnings + hook_warnings,
         }

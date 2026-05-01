@@ -78,9 +78,17 @@ def _mark_project_graph_clean(layout: ProjectLayout, timestamp: str) -> None:
     write_json_atomic(knowledge_path, state)
 
 
-def _degraded(layout: ProjectLayout, project_id: str, *, mode: str, message: str) -> Dict[str, Any]:
+def _degraded(layout: ProjectLayout, project_id: str, *, mode: str, message: str, warnings: List[str] = None) -> Dict[str, Any]:
     _write_graph_health(layout, status="degraded", message=message)
-    emit_event(layout, project_id, "graph.rebuild_degraded", {"mode": mode, "message": message}, slot_id="supervisor")
+    hook_warnings = emit_event(
+        layout,
+        project_id,
+        "graph.rebuild_degraded",
+        {"mode": mode, "message": message},
+        slot_id="supervisor",
+        dispatch_hooks=True,
+    )
+    all_warnings = list(warnings or []) + [message] + hook_warnings
     return {
         "rebuilt": False,
         "degraded": True,
@@ -92,7 +100,7 @@ def _degraded(layout: ProjectLayout, project_id: str, *, mode: str, message: str
         "artifacts": [],
         "node_count": 0,
         "edge_count": 0,
-        "warnings": [message],
+        "warnings": all_warnings,
     }
 
 
@@ -100,15 +108,22 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
     layout = _layout_from_payload(payload)
     mode = _mode(payload)
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
+
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
-        topology = load_topology(layout)
-        ensure_support_surfaces(layout, topology.active_slot_ids + topology.retired_slot_ids)
         graph_config = _read_adapter_config(layout)
         if graph_config.get("enabled") is False:
-            return _degraded(layout, project.project_id, mode=mode, message="Graph adapter is disabled.")
+            return _degraded(layout, project.project_id, mode=mode, message="Graph adapter is disabled.", warnings=preparation.warnings)
         adapter_name = graph_config.get("adapter", "local_file")
         if adapter_name != "local_file":
-            return _degraded(layout, project.project_id, mode=mode, message=f"Graph adapter is unavailable: {adapter_name}")
+            return _degraded(
+                layout,
+                project.project_id,
+                mode=mode,
+                message=f"Graph adapter is unavailable: {adapter_name}",
+                warnings=preparation.warnings,
+            )
 
         timestamp = now_utc()
         documents = _project_wiki_documents(layout)
@@ -116,7 +131,7 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
             export, report = adapter.build(root=layout.root, document_paths=documents, generated_at=timestamp, mode=mode)
         except Exception as exc:  # pragma: no cover - defensive adapter boundary
-            return _degraded(layout, project.project_id, mode=mode, message=f"Graph adapter failed: {exc}")
+            return _degraded(layout, project.project_id, mode=mode, message=f"Graph adapter failed: {exc}", warnings=preparation.warnings)
 
         timestamp_slug = _safe_timestamp(timestamp)
         timestamped_export_path = f"shared/graph/graph-export-{timestamp_slug}.json"
@@ -150,12 +165,13 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         _mark_project_graph_clean(layout, timestamp)
         _write_graph_health(layout, status="healthy", message="Local-file graph adapter rebuilt project graph.")
-        emit_event(
+        hook_warnings = emit_event(
             layout,
             project.project_id,
             "graph.rebuilt",
             {"mode": mode, "node_count": export["node_count"], "edge_count": export["edge_count"], "path": latest_export_path},
             slot_id="supervisor",
+            dispatch_hooks=True,
         )
         return {
             "rebuilt": True,
@@ -168,5 +184,5 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
             "artifacts": [artifact_summary(export_artifact), artifact_summary(report_artifact)],
             "node_count": export["node_count"],
             "edge_count": export["edge_count"],
-            "warnings": [],
+            "warnings": preparation.warnings + hook_warnings,
         }

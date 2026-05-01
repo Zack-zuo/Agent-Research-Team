@@ -598,10 +598,12 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
     budget_override = _budget_override(payload)
 
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.activation_service import _admit_next_task_if_possible_locked, _write_task
         from research_agent_team.application.approval_service import create_approval
         from research_agent_team.application.recovery_service import recover_stale_activations_locked
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         if project.status == ProjectStatus.ARCHIVED:
             raise CommandError("invalid_project_status", "Cannot run experiments in an archived project", status=project.status.value)
@@ -721,7 +723,7 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             _write_slot(layout, executor)
             launch_request = _admit_next_task_if_possible_locked(layout, project.status, executor)
 
-        emit_event(
+        hook_warnings = emit_event(
             layout,
             project.project_id,
             "task.created",
@@ -729,8 +731,9 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             slot_id=executor_slot_id,
             task_id=task.task_id,
             approval_id=approval_id,
+            dispatch_hooks=True,
         )
-        emit_event(
+        hook_warnings.extend(emit_event(
             layout,
             project.project_id,
             "experiment.requested",
@@ -738,7 +741,8 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             slot_id=executor_slot_id,
             task_id=task.task_id,
             approval_id=approval_id,
-        )
+            dispatch_hooks=True,
+        ))
 
         from research_agent_team.application.activation_service import _read_task
         from research_agent_team.application.reporting_service import rebuild_slot_views
@@ -756,7 +760,7 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             "launch_request": launch_request,
             "owner_queue_depth": len(executor.queued_task_ids),
             "pending_approval": pending_approval,
-            "warnings": [],
+            "warnings": preparation.warnings + hook_warnings,
         }
 
 
@@ -770,9 +774,11 @@ def review_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
     decision_summary = _require_string(payload, "decision_summary")
 
     with project_lock(layout.lock_path):
+        from research_agent_team.application.health_service import prepare_project_for_command_locked
         from research_agent_team.application.activation_service import _admit_next_task_if_possible_locked, _read_task, _write_task
         from research_agent_team.application.reporting_service import rebuild_slot_views
 
+        preparation = prepare_project_for_command_locked(layout)
         project = load_project(layout)
         run = _read_experiment_run(layout, experiment_run_id)
         request = _read_experiment_request(layout, run.experiment_request_id)
@@ -875,19 +881,22 @@ def review_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             owner.queued_task_ids.append(follow_up_task.task_id)
             owner.updated_at = timestamp
             _write_slot(layout, owner)
-            emit_event(
+            hook_warnings = emit_event(
                 layout,
                 project.project_id,
                 "task.created",
                 {"requester_slot_id": reviewer_slot_id, "title": follow_up_task.title},
                 slot_id=owner_slot_id,
                 task_id=follow_up_task.task_id,
+                dispatch_hooks=True,
             )
             follow_up_launch_request = _admit_next_task_if_possible_locked(layout, project.status, owner)
             owner = _read_slot(layout, owner_slot_id)
             follow_up_task = _read_task(layout, follow_up_task.task_id)
             follow_up_task_summary = _task_summary(follow_up_task, owner)
             review.follow_up_task_id = follow_up_task.task_id
+        else:
+            hook_warnings = []
 
         run.status = "reviewed"
         run.reviewed_at = timestamp
@@ -902,7 +911,7 @@ def review_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
         executor.updated_at = timestamp
         _write_slot(layout, executor)
         _write_experiment_review(layout, review)
-        emit_event(
+        hook_warnings.extend(emit_event(
             layout,
             project.project_id,
             "experiment.review_completed",
@@ -910,7 +919,8 @@ def review_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             slot_id=reviewer_slot_id,
             task_id=task.task_id,
             activation_id=run.activation_id,
-        )
+            dispatch_hooks=True,
+        ))
         rebuild_slot_views(layout, {request.requester_slot_id, request.executor_slot_id, reviewer_slot_id, "supervisor"})
         return {
             "experiment_run": _experiment_run_summary(request, run, task),
@@ -926,5 +936,5 @@ def review_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
             "follow_up_task": follow_up_task_summary,
             "follow_up_launch_request": follow_up_launch_request,
             "pending_approval": None,
-            "warnings": [],
+            "warnings": preparation.warnings + hook_warnings,
         }
