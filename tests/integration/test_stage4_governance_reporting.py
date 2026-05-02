@@ -5,6 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from research_agent_team.application.artifact_service import index_artifact
+from research_agent_team.application.errors import CommandError
+from research_agent_team.domain import ArtifactVisibility
+from research_agent_team.storage import ProjectLayout
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "research-agent-team"
@@ -246,6 +251,68 @@ class Stage4GovernanceReportingTests(unittest.TestCase):
             )
             self.assertFalse(rejected["ok"], rejected)
             self.assertEqual(rejected["error"]["code"], "artifact_activation_mismatch")
+
+    def test_activation_output_artifacts_reject_worker_supplied_artifact_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            assigned = self.assign_task(project_root)
+            activation_id = assigned["launch_request"]["activation_id"]
+            self.run_activation("mark-running", project_root, activation_id)
+            output_path = project_root / "agents" / "senior-01" / "workspace" / "worker-id.md"
+            output_path.write_text("worker supplied id\n", encoding="utf-8")
+
+            rejected = self.run_activation(
+                "complete",
+                project_root,
+                activation_id,
+                {
+                    "output_artifacts": [
+                        {
+                            "artifact_id": "artifact-forged",
+                            "path": "agents/senior-01/workspace/worker-id.md",
+                            "type": "forged_output",
+                            "visibility": "slot_private",
+                        }
+                    ]
+                },
+                check=False,
+            )
+
+            self.assertFalse(rejected["ok"], rejected)
+            self.assertEqual(rejected["error"]["code"], "invalid_payload")
+
+    def test_index_artifact_rejects_duplicate_explicit_artifact_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+            layout = ProjectLayout(project_root)
+
+            first_path = project_root / "shared" / "artifacts" / "first.md"
+            second_path = project_root / "shared" / "artifacts" / "second.md"
+            first_path.write_text("first\n", encoding="utf-8")
+            second_path.write_text("second\n", encoding="utf-8")
+
+            index_artifact(
+                layout,
+                path="shared/artifacts/first.md",
+                artifact_type="manual",
+                visibility=ArtifactVisibility.PROJECT_SHARED,
+                producing_slot_id="supervisor",
+                artifact_id="artifact-fixed",
+            )
+
+            with self.assertRaises(CommandError) as raised:
+                index_artifact(
+                    layout,
+                    path="shared/artifacts/second.md",
+                    artifact_type="manual",
+                    visibility=ArtifactVisibility.PROJECT_SHARED,
+                    producing_slot_id="supervisor",
+                    artifact_id="artifact-fixed",
+                )
+            self.assertEqual(raised.exception.code, "artifact_id_conflict")
 
     def test_budget_override_approval_replay_queues_or_blocks_real_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

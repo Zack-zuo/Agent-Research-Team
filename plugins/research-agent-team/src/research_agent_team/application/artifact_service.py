@@ -120,9 +120,13 @@ def index_artifact(
             artifact_id=promoted_from_artifact_id,
         )
 
+    explicit_artifact_id = artifact_id.strip() if isinstance(artifact_id, str) and artifact_id.strip() else None
+    if explicit_artifact_id and load_artifact(layout, explicit_artifact_id) is not None:
+        raise CommandError("artifact_id_conflict", f"Artifact ID already exists: {explicit_artifact_id}", artifact_id=explicit_artifact_id)
+
     timestamp = created_at or now_utc()
     artifact = {
-        "artifact_id": artifact_id.strip() if isinstance(artifact_id, str) and artifact_id.strip() else new_id("artifact"),
+        "artifact_id": explicit_artifact_id or new_id("artifact"),
         "type": artifact_type,
         "path": str(relative_path),
         "visibility": visibility.value,
@@ -156,6 +160,8 @@ def publish_output_artifacts(layout: ProjectLayout, activation: Any, task: Any, 
         raw_path = descriptor.get("path")
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise CommandError("invalid_payload", "output artifact path is required", field="output_artifacts.path")
+        if descriptor.get("artifact_id") is not None:
+            raise CommandError("invalid_payload", "output artifact IDs are assigned by the runtime", field="output_artifacts.artifact_id")
         visibility = _coerce_visibility(descriptor.get("visibility", ArtifactVisibility.SLOT_PRIVATE.value))
         relative_path = _validate_relative_path(raw_path)
         _validate_output_path(activation.slot_id, relative_path, visibility)
