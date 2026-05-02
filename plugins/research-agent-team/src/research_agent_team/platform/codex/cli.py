@@ -209,6 +209,29 @@ def run_render_launch_prompt(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_context(args: argparse.Namespace) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    if getattr(args, "context_json", None):
+        context.update(_load_json_object(args.context_json))
+    if getattr(args, "context_file", None):
+        context.update(_load_json_object(Path(args.context_file).read_text(encoding="utf-8")))
+    if getattr(args, "root_path", None):
+        context["root_path"] = args.root_path
+    if getattr(args, "requester_slot_id", None):
+        context["requester_slot_id"] = args.requester_slot_id
+    if getattr(args, "confirmation_mode", None):
+        context["confirmation_mode"] = args.confirmation_mode
+    return context
+
+
+def run_interpret(args: argparse.Namespace) -> int:
+    from research_agent_team.application.command_interpreter_service import interpret_command
+
+    interpretation = interpret_command(args.text, _load_context(args))
+    _dump_json(_ok(interpretation.to_dict()))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="research-agent-team-codex")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -233,6 +256,15 @@ def build_parser() -> argparse.ArgumentParser:
     prompt_parser.add_argument("--payload-json")
     prompt_parser.add_argument("--payload-file")
     prompt_parser.set_defaults(func=run_render_launch_prompt)
+
+    interpret_parser = subparsers.add_parser("interpret", help="Map natural language to a ResearchAgentTeam command plan.")
+    interpret_parser.add_argument("--text", required=True, help="Natural-language request to interpret.")
+    interpret_parser.add_argument("--root-path")
+    interpret_parser.add_argument("--requester-slot-id")
+    interpret_parser.add_argument("--confirmation-mode", choices=("conservative", "aggressive"), default="conservative")
+    interpret_parser.add_argument("--context-json")
+    interpret_parser.add_argument("--context-file")
+    interpret_parser.set_defaults(func=run_interpret)
 
     return parser
 

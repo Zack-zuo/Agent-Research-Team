@@ -37,6 +37,27 @@ Project lifecycle, topology, `assign_task`, experiment, approval decisions,
 status, report, knowledge, and graph commands delegate to application services
 and return structured JSON.
 
+## Natural-Language Planning
+
+Use `interpret` when the user asks in natural language and you need a safe
+command plan before execution:
+
+```bash
+research-agent-team-codex interpret --root-path "/absolute/project" --text "show current progress"
+research-agent-team-codex interpret --root-path "/absolute/project" --text "assign senior-01 a literature review task to review shared/raw"
+research-agent-team-codex interpret --root-path "/absolute/project" --text "run a baseline experiment"
+```
+
+The interpreter is read-only. It returns `intent`, `confidence`,
+`command_name`, `payload`, `missing_fields`, `ambiguous_references`,
+`needs_confirmation`, `confirmation_reason`, warnings, validation errors, and
+`ready_for_execution`.
+
+Default `conservative` confirmation mode requires confirmation for lifecycle
+changes, task assignment, experiments, approvals, and full rebuilds. Use
+`--confirmation-mode aggressive` only when the caller explicitly wants clear
+non-ambiguous plans to be considered executable immediately.
+
 ## Launch Requests
 
 When `assign_task` returns a non-null `launch_request`, render it before

@@ -88,6 +88,34 @@ class RatPluginCliTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertNotEqual(payload["error"]["code"], "not_implemented")
 
+    def test_interpret_mode_returns_structured_command_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            created = self.run_cli(
+                "command",
+                "create_project",
+                "--payload-json",
+                json.dumps({"name": "CLI Interpret Demo", "root_path": str(project_root)}),
+            )
+            self.assertTrue(json.loads(created.stdout)["ok"])
+
+            result = self.run_cli(
+                "interpret",
+                "--text",
+                "assign senior-01 a literature review task to review shared/raw",
+                "--root-path",
+                str(project_root),
+            )
+
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"], payload)
+            interpretation = payload["result"]
+            self.assertEqual(interpretation["command_name"], "assign_task")
+            self.assertEqual(interpretation["payload"]["owner_slot_id"], "senior-01")
+            self.assertEqual(interpretation["payload"]["input_path_roots"], ["shared/raw"])
+            self.assertTrue(interpretation["needs_confirmation"])
+            self.assertTrue(interpretation["ready_for_execution"])
+
 
 if __name__ == "__main__":
     unittest.main()

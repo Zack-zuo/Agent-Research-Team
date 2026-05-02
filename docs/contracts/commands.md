@@ -2,6 +2,8 @@
 
 ResearchAgentTeam commands are exposed through `research-agent-team-codex command <name>` and return one JSON object with `ok` plus either `result` or `error`. Command payloads are JSON objects supplied by `--payload-json`, `--payload-file`, or stdin. The command bridge is intentionally thin: it validates transport shape, loads the matching application service, and serializes structured errors without duplicating business rules.
 
+Natural-language interpretation is exposed through `research-agent-team-codex interpret --text "<request>"`. It is a read-only planning surface, not a state transition. The interpreter returns a structured command plan with `intent`, `confidence`, `command_name`, `payload`, `missing_fields`, `ambiguous_references`, `resolved_references`, `needs_confirmation`, `confirmation_reason`, `warnings`, `validation_errors`, and `ready_for_execution`. Callers must dispatch the planned command separately after applying their confirmation policy.
+
 All state-sensitive commands except `create_project` run the Stage 7 preflight under the project lock before their main transition. Preflight may migrate a supported schema, repair support surfaces, normalize adapter health, validate integrity, and return warnings. Warnings are non-fatal and must be preserved in the command result. Fatal preflight failures return `ok: false` with a stable `error.code`.
 
 Public project commands:
@@ -22,5 +24,16 @@ Public workflow commands:
 - `request_status`, `generate_report`: write durable Markdown report artifacts and index them.
 - `sync_knowledge_base`, `rebuild_graph`: compile knowledge and build local graph outputs, with degraded graph behavior when configured adapters are unavailable.
 - `run_experiment`, `review_experiment`: create experiment work through normal task admission and review produced evidence.
+
+Common interpretation examples:
+
+- `open this project` -> `open_project`
+- `show current progress` -> `request_status`
+- `assign senior-01 a literature review task` -> `assign_task`
+- `pause the project` -> `pause_project`
+- `resume from the last checkpoint` -> `resume_project`
+- `sync the knowledge base` -> `sync_knowledge_base`
+- `rebuild the graph from scratch` -> `rebuild_graph` with `mode=full`
+- `run a baseline experiment` -> `run_experiment`
 
 Activation callbacks use `research-agent-team-codex activation <callback>` and are scoped by root path plus activation id. Supported callbacks are `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, and `cancel`. Callbacks update canonical activation, task, checkpoint, budget, artifact, experiment, and event state as appropriate.

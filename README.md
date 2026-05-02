@@ -98,6 +98,21 @@ From a source checkout, you can also run the bridge without relying on the conso
 python plugins/research-agent-team/scripts/rat_plugin_cli.py --help
 ```
 
+### Interpret natural-language requests
+
+Before executing a natural-language request, ask the interpreter for a command
+plan:
+
+```bash
+research-agent-team-codex interpret \
+  --root-path "/absolute/path/to/my-research-project" \
+  --text "assign senior-01 a literature review task to review shared/raw"
+```
+
+The interpreter returns structured JSON with the inferred command payload,
+missing or ambiguous fields, validation warnings, and whether confirmation is
+required. It does not execute the command.
+
 ### Use the plugin command bridge
 
 The main Codex session should use the command bridge to create, open, inspect, and operate projects:

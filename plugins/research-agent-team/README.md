@@ -35,6 +35,8 @@ The package provides:
 - Stage 7 hardening for command preflight, supported schema migration, adapter
   health normalization, best-effort hook delivery, integrity validation, and
   release packaging checks
+- deterministic natural-language interpretation through `interpret`, which
+  maps user requests to structured command plans without executing them
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
@@ -52,3 +54,25 @@ bash scripts/package-plugin.sh
 python plugins/research-agent-team/scripts/validate_manifest.py
 python plugins/research-agent-team/scripts/validate_schemas.py
 ```
+
+## Natural-Language Interpretation
+
+Use `interpret` to turn a user request into a validated command plan before
+deciding whether to execute it:
+
+```bash
+research-agent-team-codex interpret \
+  --root-path "/absolute/project" \
+  --text "assign senior-01 a literature review task to review shared/raw"
+```
+
+The result includes `intent`, `command_name`, `payload`, `missing_fields`,
+`ambiguous_references`, `needs_confirmation`, `confirmation_reason`, warnings,
+validation errors, and `ready_for_execution`. Interpretation is read-only; run
+the returned command separately after confirmation.
+
+The default confirmation mode is conservative. Clear open/status requests can
+proceed, while lifecycle changes, task assignment, experiments, approvals, and
+high-impact full rebuilds require confirmation. Use
+`--confirmation-mode aggressive` when the caller wants confirmation only for
+missing, ambiguous, or invalid plans.

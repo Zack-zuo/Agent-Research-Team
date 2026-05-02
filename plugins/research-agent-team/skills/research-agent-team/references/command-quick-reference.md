@@ -11,6 +11,11 @@ Implemented project lifecycle:
 - `pause_project`
 - `resume_project`
 
+Implemented planning:
+
+- `interpret` maps natural-language requests to structured command plans and
+  does not execute the planned command
+
 Implemented topology:
 
 - `show_team_topology`
