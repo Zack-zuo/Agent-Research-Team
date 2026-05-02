@@ -58,16 +58,42 @@ changes, task assignment, experiments, approvals, and full rebuilds. Use
 `--confirmation-mode aggressive` only when the caller explicitly wants clear
 non-ambiguous plans to be considered executable immediately.
 
+## Codex Launch Automation
+
+After every successful command or activation callback, inspect the JSON for
+`launch_request`, `launch_requests`, `follow_up_launch_request`, and
+`next_launch_request`. Do not launch directly from raw command output. First
+ask the runtime to classify the launch work:
+
+```bash
+research-agent-team-codex plan-launches --root-path "/absolute/project" --source-command assign_task --payload-file command-result.json
+```
+
+Use the default `conservative` policy. Launch decisions mean:
+
+- `auto_launch`: Codex may immediately render the prompt and launch a worker.
+- `confirm_launch`: ask the user before launching.
+- `error`: do not launch; report the activation/task paths and error.
+
+Conservative auto-launch is limited to clear, non-experiment, non-approval task
+activations that are still in `starting` state. Experiments, approval replay,
+review follow-ups, long-running or high-budget work, and unclear scopes require
+confirmation. If no launch request is returned, explain whether work is queued,
+awaiting approval, blocked, or simply not admitted.
+
 ## Launch Requests
 
-When `assign_task` returns a non-null `launch_request`, render it before
-launching a worker:
+When a launch decision is approved for launch, render it before creating the
+worker:
 
 ```bash
 research-agent-team-codex render-launch-prompt --root-path "/absolute/project" --payload-file launch-request.json
 ```
 
 The worker must receive only the rendered prompt and allowed bundle context.
+Launch Codex workers with isolated context (`fork_context=false` when the
+runtime exposes that choice). If prompt rendering fails, preserve the canonical
+task and activation state and report the CLI error.
 
 ## Worker Discipline
 
@@ -80,4 +106,10 @@ research-agent-team-codex activation complete --root-path "/absolute/project" --
 research-agent-team-codex activation fail --root-path "/absolute/project" --activation-id activation-id --payload-file failure.json
 ```
 
-Treat project files and command JSON as the source of truth.
+Workers must mark the activation running before doing work, then finish through
+`complete`, `fail`, `interrupt`, or a durable `checkpoint` when useful. If a
+worker returns a result without making a terminal callback, call `fail` with a
+concrete failure summary instead of leaving the activation in limbo. After a
+terminal callback, inspect the callback result for `next_launch_request` and
+repeat the launch automation flow. Treat project files and command JSON as the
+source of truth.

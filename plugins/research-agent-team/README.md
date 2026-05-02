@@ -37,6 +37,8 @@ The package provides:
   release packaging checks
 - deterministic natural-language interpretation through `interpret`, which
   maps user requests to structured command plans without executing them
+- Codex-side launch planning through `plan-launches`, which classifies command
+  `launch_request` results before Codex renders prompts and spawns workers
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes

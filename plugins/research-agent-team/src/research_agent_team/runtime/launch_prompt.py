@@ -7,6 +7,7 @@ from typing import Any, Dict
 from research_agent_team.application.errors import CommandError
 from research_agent_team.application.project_service import _read_slot
 from research_agent_team.domain import SlotRole
+from research_agent_team.runtime.launch_request_orchestrator import validate_launch_request_context
 from research_agent_team.storage import ProjectLayout
 
 
@@ -43,6 +44,7 @@ def _role_label(role: SlotRole) -> str:
 
 
 def render_launch_prompt(root_path: str, launch_request: Dict[str, Any]) -> str:
+    validate_launch_request_context(root_path, launch_request)
     layout = ProjectLayout(Path(root_path))
     activation_id = _required_string(launch_request, "activation_id")
     slot_id = _required_string(launch_request, "slot_id")

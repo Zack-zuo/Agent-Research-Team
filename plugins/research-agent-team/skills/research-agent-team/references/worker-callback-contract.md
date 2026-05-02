@@ -17,6 +17,11 @@ Activation inputs include `bundle.json`, `briefing.md`, `runtime.json`, and
 `permissions.json`. The permission manifest is the worker's explicit list of
 allowed artifact IDs, path roots, and grants.
 
+The supervisor must run `plan-launches` before rendering a prompt. Workers
+should never receive raw supervisor context or unclassified launch requests.
+They receive only the rendered activation prompt and the bundle context embedded
+in that prompt.
+
 The runtime persists durable state transitions, bundle materialization,
 checkpoints, budget heartbeats, terminal activation outcomes, artifact indexes,
 and stale activation recovery.

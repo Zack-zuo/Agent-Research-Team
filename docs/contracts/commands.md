@@ -4,6 +4,8 @@ ResearchAgentTeam commands are exposed through `research-agent-team-codex comman
 
 Natural-language interpretation is exposed through `research-agent-team-codex interpret --text "<request>"`. It is a read-only planning surface, not a state transition. The interpreter returns a structured command plan with `intent`, `confidence`, `command_name`, `payload`, `missing_fields`, `ambiguous_references`, `resolved_references`, `needs_confirmation`, `confirmation_reason`, `warnings`, `validation_errors`, and `ready_for_execution`. Callers must dispatch the planned command separately after applying their confirmation policy.
 
+Codex-side launch automation is exposed through `research-agent-team-codex plan-launches`. It accepts a prior command or activation callback result and returns launch decisions without mutating canonical project state. The default `conservative` policy permits automatic launch only for clear, non-experiment, non-approval activations that still match starting activation, admitted task, owner slot, and materialized bundle state. Experiments, approval replay, review follow-ups, high-budget or long-running work, unclear scopes, invalid state, and stale activations return confirmation or error decisions instead.
+
 All state-sensitive commands except `create_project` run the Stage 7 preflight under the project lock before their main transition. Preflight may migrate a supported schema, repair support surfaces, normalize adapter health, validate integrity, and return warnings. Warnings are non-fatal and must be preserved in the command result. Fatal preflight failures return `ok: false` with a stable `error.code`.
 
 Public project commands:
@@ -37,3 +39,12 @@ Common interpretation examples:
 - `run a baseline experiment` -> `run_experiment`
 
 Activation callbacks use `research-agent-team-codex activation <callback>` and are scoped by root path plus activation id. Supported callbacks are `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, and `cancel`. Callbacks update canonical activation, task, checkpoint, budget, artifact, experiment, and event state as appropriate.
+
+Launch handling flow:
+
+1. Run a command or callback through the bridge.
+2. Pass the full JSON result to `plan-launches`.
+3. For `auto_launch`, render the sanitized launch request with `render-launch-prompt` and launch a Codex worker with only that rendered prompt.
+4. For `confirm_launch`, ask the user before rendering and launching.
+5. For `error`, leave canonical state untouched and report the activation, task, and slot state paths.
+6. After worker completion or failure callbacks, inspect any `next_launch_request` and repeat the same flow.
