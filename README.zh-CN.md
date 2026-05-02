@@ -2,291 +2,652 @@
 
 [English](./README.md)
 
-ResearchAgentTeam 用来帮助研究者运行长期的计算型研究项目。它不是让每一次工作都从新的聊天开始，而是通过持久化的研究团队结构，把项目记忆、任务流转、报告、知识输出和实验结果持续保存在本地。
+ResearchAgentTeam 是一个 Codex 优先、本地优先的研究编排插件。它帮助研究者把长期计算型研究项目持续运行下去，而不是每次都从新的聊天上下文重新开始。团队结构、任务流转、activation 状态、报告、实验依据和可复用知识都会写入本地文件系统。
 
-## 项目简介
+主 Codex 会话扮演 `supervisor`。持久化的 `senior_phd` 和 `junior_phd` 槽位保存在项目状态里，并通过显式命令被激活。系统不把聊天记录当成唯一记忆，而是让项目状态可以检查、恢复和复用。
 
-研究项目通常不适合只依赖一次性的代理会话。它们更需要：
+## 它提供什么
 
-- 持久化的角色和共享上下文
-- 清晰的任务分配与评审方式
-- 可重复利用的知识沉淀
-- 持久保存的实验结果和报告
+- 持久化团队记忆：稳定的 supervisor、senior、junior 槽位和可持久化状态。
+- 文件系统优先输出：报告、笔记、图谱摘要、实验依据和 wiki 页面都会保留在项目根目录。
+- 显式任务流：任务通过命令结果完成分配、准入、启动、checkpoint、完成、失败或评审。
+- 安全的 Codex 启动流程：launch request 会先被分类，再渲染 worker prompt。
+- 知识沉淀：共享材料可以编译成可复用的 wiki 风格输出。
+- 实验工作流：senior 定义、junior 执行的实验会产出 evidence package 和 review record。
+- 操作者可见性：状态报告和最终报告包会汇总进展、审批、警告和下一步工作。
 
-ResearchAgentTeam 就是为这类研究方式设计的。它把一个项目组织成一个稳定的团队，包括：
+## 仓库结构
 
-- `supervisor`：负责方向和优先级的主导角色
-- `senior_phd`：负责拆解工作和审阅结果的高级研究槽位
-- `junior_phd`：负责执行实验和编码任务的初级研究槽位
-
-系统不会只依赖聊天记录来保存记忆，而是把项目状态和主要输出写入文件系统，让它们能够被持续查看、复用和积累。
-
-## 优势
-
-ResearchAgentTeam 在实际研究工作中的价值主要体现在：
-
-- 持久化团队记忆：项目中的角色、历史和工作区域会随着时间保留下来。
-- 文件系统优先：报告、笔记、实验工件和共享资料都会直接保存在磁盘上，便于查看和追踪。
-- 清晰的任务流：工作以明确的方式被分配、审阅和记录，而不是散落在临时对话中。
-- 知识可积累：原始材料可以整理成可复用的 wiki 风格知识输出。
-- 实验支持：实验请求、输出和后续工作会自然关联在一起，不会散落到不同会话里。
-- 更好的可见性：状态报告和最终报告包能帮助你更快了解项目进展以及下一步该做什么。
-
-## 你可以做什么
-
-使用当前产品，你可以：
-
-- 创建并重新打开研究项目
-- 为团队添加 senior 和 junior 角色
-- 分配研究任务或编码任务
-- 同步知识并生成共享输出
-- 重建图谱类项目视图
-- 运行实验并评审结果
-- 生成状态报告和最终报告包
-
-创建项目后，系统会生成类似下面的本地工作空间：
+本仓库按源码 monorepo 维护。真正可安装的 Codex 插件位于 `plugins/research-agent-team/`，根目录的 docs、tests 和发布脚本是开发资产。
 
 ```text
-ResearchProject/
+research-agent-team/
+├── README.md
+├── README.zh-CN.md
+├── docs/
+├── scripts/
+├── tests/
+└── plugins/
+    └── research-agent-team/
+        ├── .codex-plugin/plugin.json
+        ├── mcp/.mcp.json
+        ├── skills/research-agent-team/SKILL.md
+        ├── scripts/rat_plugin_cli.py
+        ├── scripts/rat_plugin_mcp.py
+        ├── schemas/
+        └── src/research_agent_team/
+```
+
+创建研究项目后，runtime 会生成一个独立的项目根目录，例如：
+
+```text
+MyResearchProject/
 ├── project.yaml
 ├── state/
 ├── agents/
 ├── shared/
-└── experiments/
+├── experiments/
+└── logs/
 ```
 
-常见的用户可见输出包括：
+重要生成路径：
 
-- `shared/reports/status-latest.md`：最新项目状态报告
-- `shared/reports/final-package-latest.md`：最新最终报告包
-- `shared/wiki/`：整理后的知识页面
-- `shared/graph/`：图谱输出与摘要
-- `experiments/runs/`：保存下来的实验结果
+- `project.yaml`：便于阅读的项目 manifest。
+- `state/project.json`：规范项目记录。
+- `state/topology/current.json`：当前团队拓扑。
+- `state/slots/*.json`：supervisor、senior、junior 槽位记录。
+- `state/tasks/*.json`：任务记录。
+- `state/activations/*.json`：worker activation 记录。
+- `state/approvals/*.json`：待处理和已处理审批。
+- `state/artifacts/index.jsonl`：append-only artifact 索引。
+- `shared/reports/status-latest.md`：最新状态报告。
+- `shared/reports/final-package-latest.md`：最新最终报告包。
+- `shared/wiki/`：编译后的知识页面。
+- `shared/graph/`：图谱 JSON 与 Markdown 摘要。
+- `experiments/runs/`：实验运行依据和 publish manifest。
+- `logs/hooks/YYYY-MM-DD.jsonl`：本地 hook 投递诊断。
 
-## 快速开始
+## 安装与验证
 
-ResearchAgentTeam 现在按源码 monorepo 维护。真正可安装的 Codex 插件位于 `plugins/research-agent-team/`，而仓库根目录保留文档、测试、CI 和发布脚本等工程资产。
+ResearchAgentTeam 需要 Python 3.12 或更新版本。
 
-### 作为 Codex 插件安装
-
-将本仓库作为 monorepo 根目录克隆。可安装插件的 manifest 位于：
-
-```text
-plugins/research-agent-team/.codex-plugin/plugin.json
-```
-
-用于告诉 Codex 如何监督项目的插件 skill 位于：
-
-```text
-plugins/research-agent-team/skills/research-agent-team/SKILL.md
-```
-
-从插件根目录安装 Python 包，使命令桥可用：
+在 monorepo 根目录安装插件包：
 
 ```bash
 python -m pip install -e plugins/research-agent-team
 ```
 
-安装后可以先验证命令桥：
+验证已安装的命令桥：
 
 ```bash
 research-agent-team-codex --help
+research-agent-team-codex command --help
 ```
 
-如果直接在源码仓库中使用，也可以运行：
+如果直接使用源码 checkout，也可以不依赖 console script，而是运行插件内 CLI wrapper：
 
 ```bash
 python plugins/research-agent-team/scripts/rat_plugin_cli.py --help
+python plugins/research-agent-team/scripts/rat_plugin_cli.py command --help
 ```
 
-### 使用插件命令桥
+可安装插件的 metadata 位于：
 
-Codex 主会话应通过命令桥创建、打开、查看和操作项目：
+```text
+plugins/research-agent-team/.codex-plugin/plugin.json
+```
+
+指导 Codex 如何监督项目的 skill 位于：
+
+```text
+plugins/research-agent-team/skills/research-agent-team/SKILL.md
+```
+
+插件也通过下面的文件注册本地 STDIO MCP server：
+
+```text
+plugins/research-agent-team/mcp/.mcp.json
+```
+
+在源码 checkout 中，可以从插件根目录启动 MCP server：
 
 ```bash
-research-agent-team-codex command open_project --payload-json '{"root_path":"/absolute/path/to/my-research-project"}'
+cd plugins/research-agent-team
+uv run --project . python ./scripts/rat_plugin_mcp.py
 ```
 
-payload 也可以来自文件或标准输入：
+## 推荐的 Codex 工作流
+
+当 MCP tools 可用时，Codex 应优先使用 MCP tools，而不是直接 shell 到 CLI：
+
+- `interpret_request`：把自然语言映射为命令计划，不修改状态。
+- `run_command`：运行公开项目命令，并在可获得 `root_path` 时附带保守的 `launch_plan`。
+- `activation_callback`：更新 activation 状态，并为后续工作附带 launch planning。
+- `plan_launches`：分类上一个 command 或 callback result 中的 launch request。
+- `render_launch_prompt`：把已批准的 launch request 渲染成 worker prompt。
+
+MCP tools 不会直接启动 worker。它们返回足够的结构，让 Codex 决定是否自动启动、请求确认或报告错误。
+
+当 MCP tools 不可用，或你在终端里操作时，使用 CLI bridge：
 
 ```bash
-research-agent-team-codex command open_project --payload-file payload.json
-printf '{"root_path":"/absolute/path/to/my-research-project"}' | research-agent-team-codex command open_project
+research-agent-team-codex command <command_name> --payload-json '{...}'
+research-agent-team-codex command <command_name> --payload-file payload.json
+printf '{"root_path":"/absolute/project"}' | research-agent-team-codex command open_project
 ```
 
-`assign_task`、`run_experiment` 等命令在准入工作时，可能返回非空的 `launch_request`。Codex 应把这个 launch request 渲染成 worker prompt，并启动 subagent：
+## 完整使用教程
+
+下面的示例使用绝对项目路径。请替换成你自己的路径：
 
 ```bash
-research-agent-team-codex plan-launches --root-path "/absolute/path/to/my-research-project" --source-command assign_task --payload-file command-result.json
-research-agent-team-codex render-launch-prompt --root-path "/absolute/path/to/my-research-project" --payload-file launch-request.json
+PROJECT_ROOT="/absolute/path/to/my-research-project"
 ```
 
-插件也通过 `plugins/research-agent-team/mcp/.mcp.json` 注册本地 STDIO MCP server。Codex 可优先使用 MCP workflow tools：`interpret_request`、`run_command`、`activation_callback`、`plan_launches` 和 `render_launch_prompt`。`run_command` 与 `activation_callback` 会在可获得 `root_path` 时附带保守的 `launch_plan`，但不会直接启动 worker。
+### 1. 创建项目
 
-worker prompt 会包含任务 bundle、briefing、runtime metadata，以及 activation 回调命令。worker 必须先把 activation 标记为 running，然后通过同一个命令桥完成或失败该 activation：
+`create_project` 会创建项目根目录、state layout、supervisor 槽位、默认 `senior-01` 槽位、policy、budget、adapter health、hook config 和初始 charter artifact。目标根目录必须不存在或为空。
 
 ```bash
-research-agent-team-codex activation mark-running --root-path "/absolute/path/to/my-research-project" --activation-id activation-id
-research-agent-team-codex activation complete --root-path "/absolute/path/to/my-research-project" --activation-id activation-id --payload-file completion.json
-research-agent-team-codex activation fail --root-path "/absolute/path/to/my-research-project" --activation-id activation-id --payload-file failure.json
+research-agent-team-codex command create_project --payload-json '{
+  "name": "Demo Research",
+  "root_path": "/absolute/path/to/my-research-project",
+  "initial_charter_text": "# Demo Research\n\nInitial scope and research questions.\n"
+}'
 ```
 
-### 作为 Python 库使用
+预期命令 envelope：
 
-原有 Python command adapter 仍可用于本地自动化和测试。
+```json
+{
+  "ok": true,
+  "result": {
+    "project": "...",
+    "topology": "...",
+    "warnings": []
+  }
+}
+```
 
-在 monorepo 中直接调用时，应先安装插件包，或设置 `PYTHONPATH=plugins/research-agent-team/src`。
+如果使用 MCP，则调用 `run_command` 并传入：
 
-#### 创建并打开项目
+```json
+{
+  "command_name": "create_project",
+  "payload": {
+    "name": "Demo Research",
+    "root_path": "/absolute/path/to/my-research-project",
+    "initial_charter_text": "# Demo Research\n\nInitial scope and research questions.\n"
+  }
+}
+```
+
+### 2. 打开或恢复项目
+
+每次回到已有项目时，先运行 `open_project`。它会在项目锁内运行 preflight，执行受支持的 migration，修复 support surface，规范化 adapter health，恢复 stale activation，重建派生视图，并返回最新 operator snapshot。
+
+```bash
+research-agent-team-codex command open_project --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project"
+}'
+```
+
+优先阅读这个结果，不要一开始就翻 raw JSON。warnings 通常是非致命的；致命完整性错误会返回 `ok: false` 和稳定的 `error.code`。
+
+### 3. 查看或调整团队
+
+查看当前拓扑：
+
+```bash
+research-agent-team-codex command show_team_topology --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project"
+}'
+```
+
+添加 senior 槽位：
+
+```bash
+research-agent-team-codex command add_senior --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project"
+}'
+```
+
+在 `senior-01` 下添加 junior 槽位：
+
+```bash
+research-agent-team-codex command add_junior --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "parent_slot_id": "senior-01"
+}'
+```
+
+退休某个槽位：
+
+```bash
+research-agent-team-codex command retire_junior --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "slot_id": "junior-01"
+}'
+```
+
+根据项目 policy 和当前状态，staffing 变更可能需要审批。如果命令返回 pending approval 而不是直接变更，请使用 `approve_checkpoint` 或 `reject_checkpoint` 处理。
+
+### 4. 解释自然语言请求
+
+执行自然语言请求前，先让 interpreter 生成命令计划：
+
+```bash
+research-agent-team-codex interpret \
+  --root-path "/absolute/path/to/my-research-project" \
+  --text "assign senior-01 a literature review task to review shared/raw"
+```
+
+interpreter 是只读的。它会返回：
+
+- `intent`
+- `confidence`
+- `command_name`
+- `payload`
+- `missing_fields`
+- `ambiguous_references`
+- `resolved_references`
+- `needs_confirmation`
+- `confirmation_reason`
+- `warnings`
+- `validation_errors`
+- `ready_for_execution`
+
+默认 `conservative` confirmation mode 会要求对生命周期变更、任务分配、实验、审批和 full rebuild 进行确认。只有当调用方明确希望减少非歧义计划的确认门槛时，才使用 `--confirmation-mode aggressive`。
+
+### 5. 分配工作
+
+使用 `assign_task` 把任务分配给某个槽位。清晰的 `success_criteria` 能让普通非实验任务更容易通过保守策略自动启动。
+
+```bash
+research-agent-team-codex command assign_task --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "requester_slot_id": "supervisor",
+  "owner_slot_id": "senior-01",
+  "title": "Review recent papers",
+  "description": "Read shared/raw and produce a concise literature summary with next-step recommendations.",
+  "success_criteria": [
+    "Write a Markdown literature summary",
+    "List open questions",
+    "Recommend follow-up tasks"
+  ],
+  "input_artifact_ids": [],
+  "input_path_roots": ["shared/raw"],
+  "expected_output_types": ["markdown"],
+  "budget_override": {}
+}'
+```
+
+成功分配后可能返回：
+
+- `launch_request`：工作已准入，需要 launch handling。
+- queued state：owner 槽位正忙，工作会稍后准入。
+- pending approval：policy 要求审批后再 replay effect。
+- blocked state：任务无法安全继续。
+
+### 6. 分类 Launch Request
+
+不要直接从原始 command output 启动 worker。请使用 MCP 附带的 `launch_plan`，或通过 CLI 分类完整 command result：
+
+```bash
+research-agent-team-codex plan-launches \
+  --root-path "/absolute/path/to/my-research-project" \
+  --source-command assign_task \
+  --payload-file command-result.json
+```
+
+launch decision 含义：
+
+- `auto_launch`：Codex 可以渲染 prompt 并启动 worker。
+- `confirm_launch`：启动前询问用户。
+- `error`：不要启动；报告 task、slot、activation 和路径细节。
+- `blocked`：命令失败或 launch handling 被跳过。
+
+默认 `conservative` 策略只会自动启动清晰、非实验、非审批、仍处于 `starting` 状态且 budget 风险较低的 activation。实验、approval replay、review follow-up、不清晰范围、stale state 和高 budget 工作都需要确认或错误处理。
+
+### 7. 渲染 Worker Prompt
+
+launch decision 被批准后，渲染经过净化的 launch request：
+
+```bash
+research-agent-team-codex render-launch-prompt \
+  --root-path "/absolute/path/to/my-research-project" \
+  --payload-file launch-request.json > worker-prompt.md
+```
+
+如果使用 MCP，把已批准的 `launch_request` object 传给 `render_launch_prompt`。worker 应只收到渲染后的 prompt，以及 prompt 中嵌入的 bundle context。
+
+### 8. 完成或失败 Activation
+
+worker 做任何实际工作前，必须先调用 `mark-running`：
+
+```bash
+research-agent-team-codex activation mark-running \
+  --root-path "/absolute/path/to/my-research-project" \
+  --activation-id activation-id
+```
+
+worker 可以持久化 checkpoint：
+
+```bash
+research-agent-team-codex activation checkpoint \
+  --root-path "/absolute/path/to/my-research-project" \
+  --activation-id activation-id \
+  --payload-json '{
+    "summary": "Reviewed the first batch of notes.",
+    "resume_instructions": "Continue with shared/raw/paper-notes-2.md before drafting the final summary.",
+    "output_artifacts": []
+  }'
+```
+
+完成普通任务前，先确认所有被引用的 output artifact 文件已经存在，并且路径是允许的 project-relative path。然后回报：
+
+```bash
+research-agent-team-codex activation complete \
+  --root-path "/absolute/path/to/my-research-project" \
+  --activation-id activation-id \
+  --payload-json '{
+    "output_artifacts": [
+      {
+        "path": "agents/senior-01/results/literature-review.md",
+        "type": "markdown",
+        "visibility": "ancestor_visible"
+      }
+    ]
+  }'
+```
+
+失败 activation：
+
+```bash
+research-agent-team-codex activation fail \
+  --root-path "/absolute/path/to/my-research-project" \
+  --activation-id activation-id \
+  --payload-json '{
+    "failure_summary": "The required input files under shared/raw were missing."
+  }'
+```
+
+其他支持的 activation callbacks 包括 `heartbeat`、`interrupt` 和 `cancel`。每次 terminal callback 后，都要检查结果里是否有 `next_launch_request`，并重复同样的 launch planning 流程。
+
+### 9. 请求状态
+
+把 `request_status` 作为日常 operator snapshot：
+
+```bash
+research-agent-team-codex command request_status --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project"
+}'
+```
+
+它会写入 `shared/reports/status-latest.md`，把该报告索引为 artifact，投递匹配 hooks，并返回 active work、queued work、approvals、warnings 和 recent artifacts 计数。
+
+### 10. 同步知识并重建图谱
+
+同步项目级知识：
+
+```bash
+research-agent-team-codex command sync_knowledge_base --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "scope_type": "project",
+  "scope_id": null,
+  "mode": "incremental"
+}'
+```
+
+同步槽位本地知识视图：
+
+```bash
+research-agent-team-codex command sync_knowledge_base --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "scope_type": "slot",
+  "scope_id": "senior-01",
+  "mode": "incremental"
+}'
+```
+
+重建图谱输出：
+
+```bash
+research-agent-team-codex command rebuild_graph --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "mode": "incremental"
+}'
+```
+
+当你明确需要完整重建时，使用 `mode: "full"`。在保守工作流里，full rebuild 可能需要确认。
+
+### 11. 运行并评审实验
+
+`run_experiment` 会创建普通 task state 和实验协调记录。它可能返回 `launch_request`，但在保守 launch policy 下，实验 activation 需要确认。
+
+```bash
+research-agent-team-codex command run_experiment --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "requester_slot_id": "senior-01",
+  "executor_slot_id": "junior-01",
+  "title": "Evaluate baseline prompt",
+  "objective": "Measure the baseline prompt on a fixture task.",
+  "hypothesis": "The baseline produces a valid structured result.",
+  "method": "Run the local-file experiment adapter once and publish outputs.",
+  "success_criteria": ["Publish a reviewable evidence package"],
+  "input_artifact_ids": [],
+  "input_path_roots": ["shared/raw"],
+  "expected_output_types": ["json", "markdown"],
+  "run_parameters": {"prompt_variant": "baseline"},
+  "compare_run_ids": [],
+  "budget_override": {}
+}'
+```
+
+实验 activation 完成后，评审 experiment run：
+
+```bash
+research-agent-team-codex command review_experiment --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "experiment_run_id": "experiment-run-id",
+  "reviewer_slot_id": "senior-01",
+  "outcome": "accepted",
+  "decision_summary": "Evidence is sufficient for the next milestone."
+}'
+```
+
+如果需要 follow-up work，使用 `outcome: "needs_follow_up"`，并包含：
+
+```json
+{
+  "follow_up_owner_slot_id": "junior-01",
+  "follow_up_title": "Repeat baseline with larger fixture set",
+  "follow_up_description": "Run the same method on the expanded fixture set and compare results.",
+  "follow_up_success_criteria": ["Publish updated evidence and comparison notes"]
+}
+```
+
+### 12. 生成报告
+
+生成最终报告包：
+
+```bash
+research-agent-team-codex command generate_report --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "report_type": "final_package",
+  "scope_type": "project",
+  "scope_id": null
+}'
+```
+
+支持的 `report_type`：
+
+- `status`
+- `topology`
+- `pending_approvals`
+- `next_steps`
+- `literature_review`
+- `experiment_summary`
+- `final_package`
+
+支持的 `scope_type` 为 `project`、`slot`、`task` 和 `experiment_run`。
+
+## 命令速查
+
+| 领域 | 命令 |
+| --- | --- |
+| 项目生命周期 | `create_project`, `open_project`, `switch_operating_mode`, `pause_project`, `resume_project` |
+| 团队拓扑 | `show_team_topology`, `add_senior`, `add_junior`, `retire_senior`, `retire_junior` |
+| 工作流 | `assign_task` |
+| 审批 | `approve_checkpoint`, `reject_checkpoint` |
+| 报告 | `request_status`, `generate_report` |
+| 知识与图谱 | `sync_knowledge_base`, `rebuild_graph` |
+| 实验 | `run_experiment`, `review_experiment` |
+| Activation callbacks | `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, `cancel` |
+| Launch handling | `plan-launches`, `render-launch-prompt` |
+| 自然语言 | CLI `interpret` mode 或 MCP `interpret_request` |
+
+所有公开命令都会返回一个 JSON envelope：
+
+```json
+{
+  "ok": true,
+  "result": {}
+}
+```
+
+或者：
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "stable_error_code",
+    "message": "Operator-facing explanation"
+  }
+}
+```
+
+## Python 自动化
+
+本地自动化应使用当前 Codex bridge。它返回的 JSON envelope 与 CLI 一致。
 
 ```python
-from research_agent_team.plugin_adapter.commands import (
-    create_project_command,
-    open_project_command,
-)
+from research_agent_team.platform.codex import bridge
 
 project_root = "/absolute/path/to/my-research-project"
 
-create_project_command(
+created = bridge.run_command(
+    "create_project",
     {
         "name": "Demo Research",
         "root_path": project_root,
-        "initial_charter_text": "# Demo Research Charter\n\nInitial scope.\n",
-    }
+        "initial_charter_text": "# Demo Research\n\nInitial scope.\n",
+    },
 )
+if not created["ok"]:
+    raise RuntimeError(created["error"])
 
-open_project_command({"root_path": project_root})
-```
+opened = bridge.run_command("open_project", {"root_path": project_root})
+if not opened["ok"]:
+    raise RuntimeError(opened["error"])
 
-#### 添加 junior 角色并分配任务
-
-```python
-from research_agent_team.plugin_adapter.commands import (
-    add_junior_command,
-    assign_task_command,
-)
-
-add_junior_command(
-    {
-        "root_path": project_root,
-        "parent_slot_id": "senior-01",
-    }
-)
-
-assign_task_command(
+assigned = bridge.run_command(
+    "assign_task",
     {
         "root_path": project_root,
         "requester_slot_id": "supervisor",
         "owner_slot_id": "senior-01",
         "title": "Review recent papers",
         "description": "Summarize the newest raw notes and propose next steps.",
-        "success_criteria": [
-            "Produce a concise literature summary",
-            "List follow-up actions",
-        ],
-        "input_artifact_ids": [],
+        "success_criteria": ["Produce a concise literature summary"],
         "input_path_roots": ["shared/raw"],
         "expected_output_types": ["markdown"],
-        "budget_override": {},
-        "review_requirement": "none",
-    }
+    },
+)
+if not assigned["ok"]:
+    raise RuntimeError(assigned["error"])
+
+with_launch_plan = bridge.with_launch_plan(
+    assigned,
+    project_root,
+    source_command="assign_task",
+    policy="conservative",
 )
 ```
 
-#### 生成共享知识输出
+旧的 plugin adapter command imports 不是当前公开入口。请优先使用 MCP workflow tools、`research-agent-team-codex`，或 `research_agent_team.platform.codex.bridge`。
 
-```python
-from research_agent_team.plugin_adapter.commands import (
-    rebuild_graph_command,
-    sync_knowledge_base_command,
-)
+## 操作者指南
 
-sync_knowledge_base_command(
-    {
-        "root_path": project_root,
-        "scope_type": "project",
-        "scope_id": None,
-        "mode": "incremental",
-    }
-)
+优先使用命令结果和生成报告。只有诊断具体问题时，才直接检查 canonical JSON。
 
-rebuild_graph_command(
-    {
-        "root_path": project_root,
-        "mode": "incremental",
-    }
-)
+推荐的返回项目流程：
+
+1. 运行 `open_project`。
+2. 运行 `request_status`。
+3. 阅读 `shared/reports/status-latest.md`。
+4. 检查 warnings、pending approvals、queued work 和 recent artifacts。
+5. 只有当 queued work 应继续推进时，才运行 `resume_project`。
+
+当核心命令逻辑成功时，warnings 是非致命的。常见 warning 来源包括 support surface 修复、可选 adapter degraded、hook delivery failure、缺少可选报告部分，或 stale activation recovery。
+
+如果命令报告缺少 canonical business state，例如缺少 task、slot、activation、approval 或 experiment 记录，请先从备份恢复该 canonical 文件，再重新运行命令。Preflight 可以修复 support directories 和 derived views，但不能伪造缺失的 canonical state。
+
+Activation 问题处理：
+
+- 运行 `open_project` 触发 stale activation recovery。
+- 运行 `request_status` 查看 blocked、queued 和 active work。
+- 检查 `state/activations/<activation-id>.json`。
+- 检查 `state/tasks/<task-id>.json` 和 `state/slots/<slot-id>.json`。
+- 当恢复出的 queued work 需要继续时，使用 `resume_project`。
+
+Adapter 问题处理：
+
+- 检查 `state/adapters/health.json`。
+- Graph adapter 失败时，应 degrade graph outputs，而不是破坏 task state。
+- Experiment adapter 失败时，应在伪造成功 evidence 前停止。
+
+Hook 问题处理：
+
+- 检查 `state/hooks/config.json`。
+- 检查 `logs/hooks/YYYY-MM-DD.jsonl`。
+- 禁用或修复噪声过大的本地 hook subscribers。Hooks 是 best-effort，不能作为 canonical state transition 的唯一路径。
+
+## 开发检查
+
+在 monorepo 根目录运行：
+
+```bash
+python plugins/research-agent-team/scripts/rat_plugin_cli.py --help
+python plugins/research-agent-team/scripts/rat_plugin_cli.py command --help
+python plugins/research-agent-team/scripts/validate_manifest.py
+python plugins/research-agent-team/scripts/validate_schemas.py
+uv run pytest
+bash scripts/validate-release-boundary.sh
+bash scripts/smoke-test-plugin.sh
+bash scripts/package-plugin.sh
 ```
 
-#### 运行并评审实验
+与 README 相关的 focused checks：
 
-```python
-from research_agent_team.plugin_adapter.commands import (
-    review_experiment_command,
-    run_experiment_command,
-)
-
-run_result = run_experiment_command(
-    {
-        "root_path": project_root,
-        "requester_slot_id": "senior-01",
-        "executor_slot_id": "junior-01",
-        "title": "Evaluate baseline prompt",
-        "objective": "Measure the baseline prompt on a fixture task.",
-        "hypothesis": "The baseline produces a valid structured result.",
-        "method": "Run the experiment once and publish outputs.",
-        "success_criteria": ["Produce a published experiment result"],
-        "input_artifact_ids": [],
-        "input_path_roots": ["shared/reports"],
-        "expected_output_types": ["json", "markdown"],
-        "run_parameters": {"prompt_variant": "baseline"},
-        "compare_run_ids": [],
-        "budget_override": {},
-    }
-)
-
-review_experiment_command(
-    {
-        "root_path": project_root,
-        "experiment_run_id": run_result["experiment_run"]["experiment_run_id"],
-        "reviewer_slot_id": "senior-01",
-        "outcome": "accepted",
-        "decision_summary": "The baseline is good enough for the next iteration.",
-    }
-)
+```bash
+uv run pytest tests/plugin/test_rat_plugin_cli.py tests/plugin/test_stage0_plugin_skeleton.py tests/unit/test_stage7_docs_and_release.py
 ```
 
-#### 生成状态与最终报告
+发布包边界是 `plugins/research-agent-team/`。根目录 `docs/`、根目录 `tests/`、`.github/`、`.agents/`、根 changelog 和根发布脚本都不属于可安装插件 subtree。
 
-```python
-from research_agent_team.plugin_adapter.commands import (
-    generate_report_command,
-    request_status_command,
-)
+## 更多文档
 
-request_status_command({"root_path": project_root})
+- [Command contract](./docs/contracts/commands.md)
+- [Project state contract](./docs/contracts/project-state.md)
+- [Adapter contract](./docs/contracts/adapters.md)
+- [Hook contract](./docs/contracts/hooks.md)
+- [Operator guide](./docs/operator-guide.md)
+- [Activation failures runbook](./docs/runbooks/activation-failures.md)
+- [Release checklist](./docs/runbooks/release-checklist.md)
+- [Plugin README](./plugins/research-agent-team/README.md)
 
-generate_report_command(
-    {
-        "root_path": project_root,
-        "report_type": "final_package",
-        "scope_type": "project",
-        "scope_id": None,
-    }
-)
-```
+## 当前可用性
 
-## 常见任务
-
-当前命令已经覆盖这些常见工作流：
-
-- 创建、打开、暂停、恢复项目，以及切换项目模式
-- 添加和退休团队角色
-- 分配工作并查看进展
-- 同步知识并重建图谱输出
-- 运行实验并评审实验结果
-- 生成状态报告和最终报告包
-
-## 当前使用方式
-
-ResearchAgentTeam 当前主要在本地机器上运行，形态是可安装 Codex 插件加 Python 命令桥。它面向单个研究项目，核心工作界面是持续保存下来的文件和报告。
+ResearchAgentTeam 当前在本地运行，形态是可安装 Codex 插件加 Python 命令桥。它面向单个本地研究项目，核心工作界面是持续保存的文件和生成报告。
