@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional
 
-from research_agent_team.application.artifact_service import publish_output_artifacts
+from research_agent_team.application.artifact_service import load_artifact, publish_output_artifacts
 from research_agent_team.application.errors import CommandError
 from research_agent_team.application.project_service import _read_slot, _write_slot, emit_event, load_project
 from research_agent_team.application.visibility_service import build_granted_permissions, permission_manifest, resolve_attached_artifacts
@@ -38,6 +38,28 @@ def _read_activation(layout: ProjectLayout, activation_id: str) -> AgentActivati
 
 def _write_activation(layout: ProjectLayout, activation: AgentActivation) -> None:
     write_json_atomic(layout.activation_state_path(activation.activation_id), activation.to_dict())
+
+
+def _validated_output_artifact_ids(layout: ProjectLayout, activation: AgentActivation, payload: Dict[str, Any]) -> List[str]:
+    if "output_artifact_ids" not in payload or payload.get("output_artifact_ids") is None:
+        return []
+    raw_ids = payload.get("output_artifact_ids")
+    if not isinstance(raw_ids, list) or any(not isinstance(artifact_id, str) or not artifact_id.strip() for artifact_id in raw_ids):
+        raise CommandError("invalid_payload", "output_artifact_ids must be a list of non-empty strings", field="output_artifact_ids")
+    artifact_ids = [artifact_id.strip() for artifact_id in raw_ids]
+    for artifact_id in artifact_ids:
+        artifact = load_artifact(layout, artifact_id)
+        if artifact is None:
+            raise CommandError("artifact_not_found", f"Output artifact does not exist: {artifact_id}", artifact_id=artifact_id)
+        if artifact.get("producing_activation_id") != activation.activation_id:
+            raise CommandError(
+                "artifact_activation_mismatch",
+                "Output artifact was not produced by this activation.",
+                artifact_id=artifact_id,
+                activation_id=activation.activation_id,
+                producing_activation_id=artifact.get("producing_activation_id"),
+            )
+    return artifact_ids
 
 
 def _activation_relative_paths(slot_id: str, activation_id: str) -> Dict[str, str]:
@@ -352,7 +374,7 @@ def persist_checkpoint(root_path: str, activation_id: str, checkpoint_payload: D
         checkpoint_id = new_id("checkpoint")
         checkpoint_dir = layout.slot_checkpoint_root(slot.slot_id, checkpoint_id)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        output_artifact_ids = list(checkpoint_payload.get("output_artifact_ids") or [])
+        output_artifact_ids = _validated_output_artifact_ids(layout, activation, checkpoint_payload)
         output_artifact_ids.extend(publish_output_artifacts(layout, activation, task, list(checkpoint_payload.get("output_artifacts") or [])))
         checkpoint = SlotCheckpoint(
             checkpoint_id=checkpoint_id,
@@ -418,7 +440,7 @@ def _finish_activation(
 ) -> Dict[str, Any]:
     project = load_project(layout)
     timestamp = now_utc()
-    output_artifact_ids = list(payload.get("output_artifact_ids") or [])
+    output_artifact_ids = _validated_output_artifact_ids(layout, activation, payload)
     output_artifact_ids.extend(publish_output_artifacts(layout, activation, task, list(payload.get("output_artifacts") or [])))
 
     activation.status = terminal_status

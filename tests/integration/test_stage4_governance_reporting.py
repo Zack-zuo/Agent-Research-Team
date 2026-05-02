@@ -31,7 +31,7 @@ class Stage4GovernanceReportingTests(unittest.TestCase):
         except json.JSONDecodeError as exc:
             self.fail(f"invalid JSON output: {exc}\nstdout={result.stdout}\nstderr={result.stderr}")
 
-    def run_activation(self, command_name: str, root_path: Path, activation_id: str, payload: dict = None) -> dict:
+    def run_activation(self, command_name: str, root_path: Path, activation_id: str, payload: dict = None, check: bool = True) -> dict:
         args = [
             "activation",
             command_name,
@@ -42,7 +42,7 @@ class Stage4GovernanceReportingTests(unittest.TestCase):
         ]
         if payload is not None:
             args.extend(["--payload-json", json.dumps(payload)])
-        result = self.run_cli(*args)
+        result = self.run_cli(*args, check=check)
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as exc:
@@ -143,6 +143,109 @@ class Stage4GovernanceReportingTests(unittest.TestCase):
             self.assertEqual(permissions["allowed_artifact_ids"], [private_artifact_id])
             self.assertIn("read_attached_private_artifacts", permissions["granted_permissions"])
             self.assertEqual(bundle["allowed_artifact_ids"], [private_artifact_id])
+
+    def test_activation_callbacks_validate_raw_output_artifact_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            assigned = self.assign_task(project_root)
+            activation_id = assigned["launch_request"]["activation_id"]
+            self.run_activation("mark-running", project_root, activation_id)
+
+            malformed = self.run_activation(
+                "complete",
+                project_root,
+                activation_id,
+                {"output_artifact_ids": "artifact-not-a-list"},
+                check=False,
+            )
+            self.assertFalse(malformed["ok"], malformed)
+            self.assertEqual(malformed["error"]["code"], "invalid_payload")
+
+            missing = self.run_activation(
+                "complete",
+                project_root,
+                activation_id,
+                {"output_artifact_ids": ["artifact-missing"]},
+                check=False,
+            )
+            self.assertFalse(missing["ok"], missing)
+            self.assertEqual(missing["error"]["code"], "artifact_not_found")
+
+            checkpoint_path = project_root / "agents" / "senior-01" / "workspace" / "checkpoint-note.md"
+            checkpoint_path.write_text("checkpoint evidence\n", encoding="utf-8")
+            checkpoint = self.run_activation(
+                "checkpoint",
+                project_root,
+                activation_id,
+                {
+                    "summary": "Evidence checkpoint.",
+                    "resume_instructions": "Resume from checkpoint evidence.",
+                    "output_artifacts": [
+                        {
+                            "path": "agents/senior-01/workspace/checkpoint-note.md",
+                            "type": "checkpoint_note",
+                            "visibility": "slot_private",
+                        }
+                    ],
+                },
+            )
+            self.assertTrue(checkpoint["ok"], checkpoint)
+            checkpoint_artifact_id = checkpoint["result"]["published_artifact_ids"][0]
+
+            completed = self.run_activation(
+                "complete",
+                project_root,
+                activation_id,
+                {"output_artifact_ids": [checkpoint_artifact_id]},
+            )
+            self.assertTrue(completed["ok"], completed)
+            self.assertEqual(completed["result"]["published_artifact_ids"], [checkpoint_artifact_id])
+
+            next_activation_id = completed["result"]["next_launch_request"]
+            self.assertIsNone(next_activation_id)
+
+    def test_activation_callbacks_reject_output_artifact_ids_from_other_activations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            first = self.assign_task(project_root, title="First artifact task")
+            first_activation_id = first["launch_request"]["activation_id"]
+            self.run_activation("mark-running", project_root, first_activation_id)
+            first_path = project_root / "agents" / "senior-01" / "workspace" / "first-output.md"
+            first_path.write_text("first evidence\n", encoding="utf-8")
+            first_completed = self.run_activation(
+                "complete",
+                project_root,
+                first_activation_id,
+                {
+                    "output_artifacts": [
+                        {
+                            "path": "agents/senior-01/workspace/first-output.md",
+                            "type": "first_output",
+                            "visibility": "slot_private",
+                        }
+                    ]
+                },
+            )
+            self.assertTrue(first_completed["ok"], first_completed)
+            first_artifact_id = first_completed["result"]["published_artifact_ids"][0]
+
+            second = self.assign_task(project_root, title="Second artifact task")
+            second_activation_id = second["launch_request"]["activation_id"]
+            self.run_activation("mark-running", project_root, second_activation_id)
+
+            rejected = self.run_activation(
+                "complete",
+                project_root,
+                second_activation_id,
+                {"output_artifact_ids": [first_artifact_id]},
+                check=False,
+            )
+            self.assertFalse(rejected["ok"], rejected)
+            self.assertEqual(rejected["error"]["code"], "artifact_activation_mismatch")
 
     def test_budget_override_approval_replay_queues_or_blocks_real_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
