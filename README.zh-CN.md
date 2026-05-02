@@ -117,8 +117,11 @@ printf '{"root_path":"/absolute/path/to/my-research-project"}' | research-agent-
 `assign_task`、`run_experiment` 等命令在准入工作时，可能返回非空的 `launch_request`。Codex 应把这个 launch request 渲染成 worker prompt，并启动 subagent：
 
 ```bash
+research-agent-team-codex plan-launches --root-path "/absolute/path/to/my-research-project" --source-command assign_task --payload-file command-result.json
 research-agent-team-codex render-launch-prompt --root-path "/absolute/path/to/my-research-project" --payload-file launch-request.json
 ```
+
+插件也通过 `plugins/research-agent-team/mcp/.mcp.json` 注册本地 STDIO MCP server。Codex 可优先使用 MCP workflow tools：`interpret_request`、`run_command`、`activation_callback`、`plan_launches` 和 `render_launch_prompt`。`run_command` 与 `activation_callback` 会在可获得 `root_path` 时附带保守的 `launch_plan`，但不会直接启动 worker。
 
 worker prompt 会包含任务 bundle、briefing、runtime metadata，以及 activation 回调命令。worker 必须先把 activation 标记为 running，然后通过同一个命令桥完成或失败该 activation：
 

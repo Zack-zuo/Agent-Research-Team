@@ -11,6 +11,7 @@
     "experiments"
   ],
   "skills": "./skills/",
+  "mcpServers": "./mcp/.mcp.json",
   "interface": {
     "displayName": "ResearchAgentTeam",
     "shortDescription": "Persistent research team control plane for Codex.",

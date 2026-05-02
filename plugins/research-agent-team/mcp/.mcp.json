@@ -1,3 +1,15 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "research-agent-team": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        ".",
+        "python",
+        "./scripts/rat_plugin_mcp.py"
+      ],
+      "cwd": "."
+    }
+  }
 }

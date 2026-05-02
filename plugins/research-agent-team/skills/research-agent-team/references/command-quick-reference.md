@@ -1,7 +1,15 @@
 # Command Quick Reference
 
-The CLI, schemas, documentation, and future MCP tools share this public command
-surface.
+The CLI, schemas, documentation, and MCP workflow tools share this public
+command surface.
+
+Implemented MCP workflow tools:
+
+- `interpret_request`
+- `run_command`
+- `activation_callback`
+- `plan_launches`
+- `render_launch_prompt`
 
 Implemented project lifecycle:
 

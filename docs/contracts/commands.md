@@ -1,10 +1,10 @@
 # Command Contract
 
-ResearchAgentTeam commands are exposed through `research-agent-team-codex command <name>` and return one JSON object with `ok` plus either `result` or `error`. Command payloads are JSON objects supplied by `--payload-json`, `--payload-file`, or stdin. The command bridge is intentionally thin: it validates transport shape, loads the matching application service, and serializes structured errors without duplicating business rules.
+ResearchAgentTeam commands are exposed through both the plugin MCP server and `research-agent-team-codex command <name>`. Both adapters return one JSON object with `ok` plus either `result` or `error`. Command payloads are JSON objects supplied as MCP tool arguments, `--payload-json`, `--payload-file`, or stdin. The protocol adapters are intentionally thin: they validate transport shape, load the matching application service, and serialize structured errors without duplicating business rules.
 
 Natural-language interpretation is exposed through `research-agent-team-codex interpret --text "<request>"`. It is a read-only planning surface, not a state transition. The interpreter returns a structured command plan with `intent`, `confidence`, `command_name`, `payload`, `missing_fields`, `ambiguous_references`, `resolved_references`, `needs_confirmation`, `confirmation_reason`, `warnings`, `validation_errors`, and `ready_for_execution`. Callers must dispatch the planned command separately after applying their confirmation policy.
 
-Codex-side launch automation is exposed through `research-agent-team-codex plan-launches`. It accepts a prior command or activation callback result and returns launch decisions without mutating canonical project state. The default `conservative` policy permits automatic launch only for clear, non-experiment, non-approval activations that still match starting activation, admitted task, owner slot, and materialized bundle state. Experiments, approval replay, review follow-ups, high-budget or long-running work, unclear scopes, invalid state, and stale activations return confirmation or error decisions instead.
+Codex-side launch automation is exposed through the MCP `plan_launches` tool and `research-agent-team-codex plan-launches`. It accepts a prior command or activation callback result and returns launch decisions without mutating canonical project state. The default `conservative` policy permits automatic launch only for clear, non-experiment, non-approval activations that still match starting activation, admitted task, owner slot, and materialized bundle state. Experiments, approval replay, review follow-ups, high-budget or long-running work, unclear scopes, invalid state, and stale activations return confirmation or error decisions instead.
 
 All state-sensitive commands except `create_project` run the Stage 7 preflight under the project lock before their main transition. Preflight may migrate a supported schema, repair support surfaces, normalize adapter health, validate integrity, and return warnings. Warnings are non-fatal and must be preserved in the command result. Fatal preflight failures return `ok: false` with a stable `error.code`.
 
@@ -38,13 +38,21 @@ Common interpretation examples:
 - `rebuild the graph from scratch` -> `rebuild_graph` with `mode=full`
 - `run a baseline experiment` -> `run_experiment`
 
-Activation callbacks use `research-agent-team-codex activation <callback>` and are scoped by root path plus activation id. Supported callbacks are `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, and `cancel`. Callbacks update canonical activation, task, checkpoint, budget, artifact, experiment, and event state as appropriate.
+Activation callbacks use the MCP `activation_callback` tool or `research-agent-team-codex activation <callback>` and are scoped by root path plus activation id. Supported callbacks are `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, and `cancel`. Callbacks update canonical activation, task, checkpoint, budget, artifact, experiment, and event state as appropriate.
+
+MCP workflow tools:
+
+- `interpret_request`: maps natural-language requests to command plans.
+- `run_command`: runs public commands and includes `launch_plan` when `root_path` is available.
+- `activation_callback`: runs activation callbacks and includes `launch_plan` for follow-up work.
+- `plan_launches`: classifies launch requests from prior results.
+- `render_launch_prompt`: renders an approved launch request into a worker prompt.
 
 Launch handling flow:
 
-1. Run a command or callback through the bridge.
-2. Pass the full JSON result to `plan-launches`.
-3. For `auto_launch`, render the sanitized launch request with `render-launch-prompt` and launch a Codex worker with only that rendered prompt.
+1. Run a command or callback through MCP or the CLI bridge.
+2. Use the attached MCP `launch_plan`, or pass the full JSON result to `plan-launches`.
+3. For `auto_launch`, render the sanitized launch request with MCP `render_launch_prompt` or CLI `render-launch-prompt`, then launch a Codex worker with only that rendered prompt.
 4. For `confirm_launch`, ask the user before rendering and launching.
 5. For `error`, leave canonical state untouched and report the activation, task, and slot state paths.
 6. After worker completion or failure callbacks, inspect any `next_launch_request` and repeat the same flow.

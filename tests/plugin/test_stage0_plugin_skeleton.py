@@ -36,6 +36,7 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
             "prompts/report_writer.md",
             "prompts/experiment_reviewer.md",
             "scripts/rat_plugin_cli.py",
+            "scripts/rat_plugin_mcp.py",
             "scripts/render_launch_prompt.py",
             "scripts/validate_manifest.py",
             "scripts/validate_schemas.py",
@@ -55,11 +56,14 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
         self.assertEqual(manifest["name"], "research-agent-team")
         self.assertEqual(manifest["version"], "0.2.0")
         self.assertEqual(manifest["skills"], "./skills/")
-        self.assertNotIn("mcpServers", manifest)
+        self.assertEqual(manifest["mcpServers"], "./mcp/.mcp.json")
 
         skills_path = (PLUGIN_ROOT / manifest["skills"]).resolve()
         self.assertTrue(skills_path.exists())
         self.assertTrue(skills_path == PLUGIN_ROOT.resolve() or PLUGIN_ROOT.resolve() in skills_path.parents)
+        mcp_path = (PLUGIN_ROOT / manifest["mcpServers"]).resolve()
+        self.assertTrue(mcp_path.exists())
+        self.assertTrue(mcp_path == PLUGIN_ROOT.resolve() or PLUGIN_ROOT.resolve() in mcp_path.parents)
 
     def test_cli_exposes_command_surface_and_stage6_runtime_handlers(self) -> None:
         top_level_help = self.run_plugin_script("--help")
@@ -80,6 +84,22 @@ class Stage0PluginSkeletonTests(unittest.TestCase):
         unknown = self.run_plugin_script("command", "not_a_command", "--payload-json", "{}", check=False)
         self.assertNotEqual(unknown.returncode, 0)
         self.assertIn("invalid choice", unknown.stderr)
+
+    def test_mcp_config_registers_workflow_server(self) -> None:
+        mcp_config = json.loads((PLUGIN_ROOT / "mcp" / ".mcp.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            mcp_config,
+            {
+                "mcpServers": {
+                    "research-agent-team": {
+                        "command": "uv",
+                        "args": ["run", "--project", ".", "python", "./scripts/rat_plugin_mcp.py"],
+                        "cwd": ".",
+                    }
+                }
+            },
+        )
 
     def test_validation_scripts_pass_from_plugin_root(self) -> None:
         for script_name in ["validate_manifest.py", "validate_schemas.py"]:

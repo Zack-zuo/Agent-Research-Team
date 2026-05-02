@@ -19,6 +19,25 @@ experiment services run senior-defined, junior-executed experiment tasks,
 publish local-file evidence packages, write comparison/review artifacts, and
 create follow-up work through the normal task flow.
 
+## MCP Workflow Tools
+
+When Codex exposes this plugin's MCP tools, prefer them over shelling out to
+the CLI for supervisor actions:
+
+- `interpret_request`: map natural language to a command plan without
+  execution.
+- `run_command`: execute a public command and receive an attached
+  `launch_plan` when `root_path` is available.
+- `activation_callback`: execute activation callbacks and receive launch
+  planning for follow-up work.
+- `plan_launches`: classify launch requests from prior command or callback
+  results.
+- `render_launch_prompt`: render an approved launch request into the worker
+  prompt.
+
+The MCP tools do not launch Codex workers directly. Use their launch decisions
+to decide whether to auto-launch, ask for confirmation, or report an error.
+
 ## Command Bridge
 
 From an installed environment, prefer the console command:
@@ -39,8 +58,8 @@ and return structured JSON.
 
 ## Natural-Language Planning
 
-Use `interpret` when the user asks in natural language and you need a safe
-command plan before execution:
+Use MCP `interpret_request` or CLI `interpret` when the user asks in natural
+language and you need a safe command plan before execution:
 
 ```bash
 research-agent-team-codex interpret --root-path "/absolute/project" --text "show current progress"
@@ -60,10 +79,11 @@ non-ambiguous plans to be considered executable immediately.
 
 ## Codex Launch Automation
 
-After every successful command or activation callback, inspect the JSON for
-`launch_request`, `launch_requests`, `follow_up_launch_request`, and
-`next_launch_request`. Do not launch directly from raw command output. First
-ask the runtime to classify the launch work:
+After every successful command or activation callback, inspect the JSON for an
+attached `launch_plan` or for `launch_request`, `launch_requests`,
+`follow_up_launch_request`, and `next_launch_request`. Do not launch directly
+from raw command output. If a launch plan is not already attached, first ask the
+runtime to classify the launch work:
 
 ```bash
 research-agent-team-codex plan-launches --root-path "/absolute/project" --source-command assign_task --payload-file command-result.json
@@ -84,7 +104,7 @@ awaiting approval, blocked, or simply not admitted.
 ## Launch Requests
 
 When a launch decision is approved for launch, render it before creating the
-worker:
+worker. Prefer MCP `render_launch_prompt` when available; otherwise use:
 
 ```bash
 research-agent-team-codex render-launch-prompt --root-path "/absolute/project" --payload-file launch-request.json

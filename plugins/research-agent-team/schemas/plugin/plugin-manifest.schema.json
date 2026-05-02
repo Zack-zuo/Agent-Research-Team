@@ -4,7 +4,7 @@
   "title": "ResearchAgentTeamPluginManifest",
   "type": "object",
   "additionalProperties": true,
-  "required": ["name", "version", "description", "license", "skills", "interface"],
+  "required": ["name", "version", "description", "license", "skills", "mcpServers", "interface"],
   "properties": {
     "name": {"const": "research-agent-team"},
     "version": {"type": "string"},
@@ -12,6 +12,7 @@
     "license": {"type": "string"},
     "keywords": {"type": "array", "items": {"type": "string"}},
     "skills": {"type": "string", "pattern": "^\\./skills/?$"},
+    "mcpServers": {"type": "string", "pattern": "^\\./mcp/\\.mcp\\.json$"},
     "interface": {
       "type": "object",
       "required": ["displayName", "shortDescription", "longDescription", "developerName", "category"],

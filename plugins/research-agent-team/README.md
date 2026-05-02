@@ -39,11 +39,13 @@ The package provides:
   maps user requests to structured command plans without executing them
 - Codex-side launch planning through `plan-launches`, which classifies command
   `launch_request` results before Codex renders prompts and spawns workers
+- a local STDIO MCP server exposing workflow tools for interpretation,
+  command execution with launch planning, activation callbacks with follow-up
+  planning, standalone launch planning, and launch prompt rendering
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
-- hook and MCP descriptors; MCP registration remains optional and inert until a
-  later roadmap stage
+- hook descriptors and MCP registration metadata
 
 ## Local Checks
 
@@ -78,3 +80,28 @@ proceed, while lifecycle changes, task assignment, experiments, approvals, and
 high-impact full rebuilds require confirmation. Use
 `--confirmation-mode aggressive` when the caller wants confirmation only for
 missing, ambiguous, or invalid plans.
+
+## MCP Workflow Surface
+
+Codex loads the plugin MCP server from `mcp/.mcp.json`. The server runs over
+STDIO and exposes five workflow tools:
+
+- `interpret_request`
+- `run_command`
+- `activation_callback`
+- `plan_launches`
+- `render_launch_prompt`
+
+`run_command` and `activation_callback` automatically attach a conservative
+`launch_plan` when a usable project `root_path` is available. MCP tools do not
+spawn workers directly; `auto_launch` and `confirm_launch` decisions still need
+the Codex host workflow to render prompts and launch subagents.
+
+For source checkouts, the MCP server can be started directly:
+
+```bash
+uv run --project . python ./scripts/rat_plugin_mcp.py
+```
+
+The CLI bridge remains available as a fallback and for worker callback commands
+embedded in rendered activation prompts.

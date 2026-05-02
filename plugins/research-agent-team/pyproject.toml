@@ -9,12 +9,14 @@ description = "Installable Codex plugin and local filesystem-first helper layer 
 requires-python = ">=3.12"
 dependencies = [
   "graphifyy>=0.6,<0.7",
+  "mcp>=1,<2",
   "pydantic>=2,<3",
   "PyYAML>=6,<7",
 ]
 
 [project.scripts]
 research-agent-team-codex = "research_agent_team.platform.codex.cli:main"
+research-agent-team-mcp = "research_agent_team.platform.codex.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

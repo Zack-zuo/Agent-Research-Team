@@ -98,6 +98,18 @@ From a source checkout, you can also run the bridge without relying on the conso
 python plugins/research-agent-team/scripts/rat_plugin_cli.py --help
 ```
 
+The installable plugin also registers a local STDIO MCP server through
+`plugins/research-agent-team/mcp/.mcp.json`. Codex can call workflow tools for
+natural-language interpretation, command execution with launch planning,
+activation callbacks with follow-up planning, standalone launch classification,
+and launch prompt rendering. The MCP server can be started from a source
+checkout with:
+
+```bash
+cd plugins/research-agent-team
+uv run --project . python ./scripts/rat_plugin_mcp.py
+```
+
 ### Interpret natural-language requests
 
 Before executing a natural-language request, ask the interpreter for a command

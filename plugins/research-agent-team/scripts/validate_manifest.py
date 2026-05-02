@@ -38,16 +38,16 @@ def validate_manifest() -> None:
     except json.JSONDecodeError as exc:
         _fail(str(exc))
 
-    for field_name in ["name", "version", "description", "license", "skills", "interface"]:
+    for field_name in ["name", "version", "description", "license", "skills", "mcpServers", "interface"]:
         if field_name not in manifest:
             _fail(f"missing required field: {field_name}")
 
     if manifest["name"] != "research-agent-team":
         _fail("name must be research-agent-team")
-    if "mcpServers" in manifest:
-        _fail("mcpServers must not be declared in the Stage 0 plugin manifest")
 
     _validate_relative_path(str(manifest["skills"]), "skills")
+    _validate_relative_path(str(manifest["mcpServers"]), "mcpServers")
+    _validate_mcp_config(str(manifest["mcpServers"]))
 
     interface = _require_object(manifest["interface"], "interface")
     for field_name in ["displayName", "shortDescription", "longDescription", "developerName", "category"]:
@@ -58,6 +58,24 @@ def validate_manifest() -> None:
         _fail("interface.capabilities must be a non-empty list")
     if not isinstance(interface.get("defaultPrompt"), list) or not interface["defaultPrompt"]:
         _fail("interface.defaultPrompt must be a non-empty list")
+
+
+def _validate_mcp_config(relative_path: str) -> None:
+    try:
+        config = _require_object(json.loads((PLUGIN_ROOT / relative_path).read_text(encoding="utf-8")), "mcpServers config")
+    except json.JSONDecodeError as exc:
+        _fail(f"invalid mcpServers JSON: {exc}")
+
+    server_map = config.get("mcpServers") or config.get("mcp_servers")
+    if not isinstance(server_map, dict) or not server_map:
+        _fail("mcpServers config must declare at least one server")
+    server = _require_object(server_map.get("research-agent-team"), "mcpServers.research-agent-team")
+    if server.get("command") != "uv":
+        _fail("mcpServers.research-agent-team.command must be uv")
+    if server.get("args") != ["run", "--project", ".", "python", "./scripts/rat_plugin_mcp.py"]:
+        _fail("mcpServers.research-agent-team.args must run the MCP server through the plugin project environment")
+    if server.get("cwd") != ".":
+        _fail("mcpServers.research-agent-team.cwd must be .")
 
 
 def main() -> int:

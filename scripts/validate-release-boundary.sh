@@ -10,8 +10,10 @@ required_paths=(
   "LICENSE"
   "pyproject.toml"
   "scripts/rat_plugin_cli.py"
+  "scripts/rat_plugin_mcp.py"
   "scripts/validate_manifest.py"
   "scripts/validate_schemas.py"
+  "mcp/.mcp.json"
   "skills/research-agent-team/SKILL.md"
 )
 
@@ -35,6 +37,7 @@ done
 
 python -m py_compile \
   "$plugin_root/scripts/rat_plugin_cli.py" \
+  "$plugin_root/scripts/rat_plugin_mcp.py" \
   "$plugin_root/scripts/render_launch_prompt.py" \
   "$plugin_root/scripts/validate_manifest.py" \
   "$plugin_root/scripts/validate_schemas.py"
