@@ -209,6 +209,14 @@ def run_render_launch_prompt(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_plan_launches(args: argparse.Namespace) -> int:
+    payload = _load_payload(args)
+    from research_agent_team.runtime import plan_launches
+
+    _dump_json(_ok(plan_launches(args.root_path, payload, source_command=args.source_command, policy=args.policy)))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="research-agent-team-codex")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -233,6 +241,14 @@ def build_parser() -> argparse.ArgumentParser:
     prompt_parser.add_argument("--payload-json")
     prompt_parser.add_argument("--payload-file")
     prompt_parser.set_defaults(func=run_render_launch_prompt)
+
+    plan_launches_parser = subparsers.add_parser("plan-launches", help="Plan Codex handling for launch_request results.")
+    plan_launches_parser.add_argument("--root-path", required=True)
+    plan_launches_parser.add_argument("--source-command", required=True, choices=COMMAND_NAMES + ACTIVATION_COMMAND_NAMES)
+    plan_launches_parser.add_argument("--policy", choices=("conservative", "confirm_all"), default="conservative")
+    plan_launches_parser.add_argument("--payload-json")
+    plan_launches_parser.add_argument("--payload-file")
+    plan_launches_parser.set_defaults(func=run_plan_launches)
 
     return parser
 

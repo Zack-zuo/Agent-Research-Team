@@ -35,6 +35,8 @@ The package provides:
 - Stage 7 hardening for command preflight, supported schema migration, adapter
   health normalization, best-effort hook delivery, integrity validation, and
   release packaging checks
+- Codex-side launch planning through `plan-launches`, which classifies command
+  `launch_request` results before Codex renders prompts and spawns workers
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes

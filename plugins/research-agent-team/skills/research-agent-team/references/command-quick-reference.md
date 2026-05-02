@@ -22,6 +22,7 @@ Implemented topology:
 Implemented task admission and activation runtime:
 
 - `assign_task`
+- `plan-launches`
 - `render-launch-prompt`
 - activation `mark-running`
 - activation `heartbeat`

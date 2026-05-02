@@ -113,13 +113,14 @@ research-agent-team-codex command open_project --payload-file payload.json
 printf '{"root_path":"/absolute/path/to/my-research-project"}' | research-agent-team-codex command open_project
 ```
 
-Commands that admit work, such as `assign_task`, may return a non-null `launch_request`. Codex should render that launch request into a worker prompt and launch a subagent:
+Commands that admit work, such as `assign_task`, may return a non-null `launch_request`. Codex should classify launch requests before rendering worker prompts:
 
 ```bash
+research-agent-team-codex plan-launches --root-path "/absolute/path/to/my-research-project" --source-command assign_task --payload-file command-result.json
 research-agent-team-codex render-launch-prompt --root-path "/absolute/path/to/my-research-project" --payload-file launch-request.json
 ```
 
-The worker prompt includes the task bundle, briefing, runtime metadata, and activation callback commands. Workers must mark the activation running, then complete or fail it through the same bridge:
+`plan-launches` is read-only. It classifies launch requests as automatic, confirmation-required, or invalid under a conservative policy. The worker prompt includes the task bundle, briefing, runtime metadata, and activation callback commands. Workers must mark the activation running, then complete or fail it through the same bridge:
 
 ```bash
 research-agent-team-codex activation mark-running --root-path "/absolute/path/to/my-research-project" --activation-id activation-id

@@ -435,6 +435,27 @@ class Stage3TaskActivationRuntimeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("escapes project root", result.stderr)
 
+    def test_render_launch_prompt_rejects_non_starting_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+            assigned = self.assign_task(project_root)
+            launch = assigned["launch_request"]
+            activation_id = launch["activation_id"]
+            self.run_activation("mark-running", project_root, activation_id)
+
+            result = self.run_cli(
+                "render-launch-prompt",
+                "--root-path",
+                str(project_root),
+                "--payload-json",
+                json.dumps(launch),
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must still be starting", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
