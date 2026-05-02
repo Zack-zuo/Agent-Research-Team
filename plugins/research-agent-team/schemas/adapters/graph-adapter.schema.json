@@ -5,8 +5,10 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "adapter": {"type": "string", "enum": ["graphify", "local_file"]},
     "adapter_id": {"type": "string"},
     "enabled": {"type": "boolean"},
+    "mode": {"type": "string"},
     "settings": {"type": "object"}
   }
 }

@@ -44,7 +44,7 @@ def default_budget_state() -> Dict[str, Any]:
 
 def default_adapter_config() -> Dict[str, Any]:
     return {
-        "graph": {"adapter": "local_file", "mode": "local", "enabled": True},
+        "graph": {"adapter": "graphify", "mode": "local", "enabled": True},
         "experiments": {"adapter": "local_file", "mode": "local", "enabled": True},
         "hooks": {"mode": "best_effort"},
     }
@@ -52,7 +52,7 @@ def default_adapter_config() -> Dict[str, Any]:
 
 def default_adapter_health() -> Dict[str, Any]:
     return {
-        "graph": {"status": "healthy", "message": "Local-file graph adapter configured."},
+        "graph": {"status": "healthy", "message": "Graphify graph adapter configured."},
         "experiments": {"status": "healthy", "message": "Local-file experiment adapter configured."},
         "hooks": {"status": "healthy", "message": "No hook subscribers configured."},
     }

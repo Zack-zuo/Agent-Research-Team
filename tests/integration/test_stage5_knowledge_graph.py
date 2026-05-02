@@ -127,13 +127,35 @@ class Stage5KnowledgeGraphTests(unittest.TestCase):
             self.assertEqual(result["report_path"], "shared/graph/graph-report-latest.md")
             export = json.loads((project_root / result["export_path"]).read_text(encoding="utf-8"))
             self.assertGreaterEqual(export["node_count"], 1)
-            self.assertEqual(export["adapter_id"], "local_file")
+            self.assertEqual(export["adapter_id"], "graphify")
             self.assertTrue(self.artifacts_for_path(project_root, "shared/graph/graph-export-latest.json"))
             self.assertTrue(self.artifacts_for_path(project_root, "shared/graph/graph-report-latest.md"))
             project_state = json.loads((project_root / "state" / "knowledge" / "project.json").read_text(encoding="utf-8"))
             self.assertFalse(project_state["graph_dirty"])
             health = json.loads((project_root / "state" / "adapters" / "health.json").read_text(encoding="utf-8"))
             self.assertEqual(health["graph"]["status"], "healthy")
+
+    def test_legacy_local_file_graph_adapter_still_rebuilds_when_explicitly_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+            config_path = project_root / "state" / "adapters" / "config.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["graph"]["adapter"] = "local_file"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            (project_root / "shared" / "raw" / "paper-a.md").write_text(
+                "# Paper A\n\nLinks to [Paper B](paper-b.md).\n",
+                encoding="utf-8",
+            )
+            (project_root / "shared" / "raw" / "paper-b.md").write_text("# Paper B\n\nEvidence.\n", encoding="utf-8")
+            self.run_command("sync_knowledge_base", {"root_path": str(project_root), "scope_type": "project", "mode": "full"})
+
+            rebuilt = self.run_command("rebuild_graph", {"root_path": str(project_root), "mode": "full"})
+
+            self.assertTrue(rebuilt["ok"], rebuilt)
+            self.assertFalse(rebuilt["result"]["degraded"], rebuilt)
+            export = json.loads((project_root / rebuilt["result"]["export_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(export["adapter_id"], "local_file")
 
     def test_disabled_graph_adapter_degrades_without_corrupting_canonical_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

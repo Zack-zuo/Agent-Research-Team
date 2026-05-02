@@ -7,7 +7,7 @@ from research_agent_team.application.artifact_service import artifact_summary, i
 from research_agent_team.application.errors import CommandError
 from research_agent_team.application.project_service import _require_string, emit_event, load_project, load_topology
 from research_agent_team.domain import ArtifactVisibility
-from research_agent_team.integrations.graph import LocalFileGraphAdapter
+from research_agent_team.integrations.graph import GraphifyGraphAdapter, LocalFileGraphAdapter
 from research_agent_team.shared import now_utc
 from research_agent_team.storage import ProjectLayout, ensure_support_surfaces, project_lock, read_json, write_json_atomic, write_text_atomic
 
@@ -61,7 +61,29 @@ def _source_artifact_ids(layout: ProjectLayout, documents: List[Path]) -> List[s
 def _read_adapter_config(layout: ProjectLayout) -> Dict[str, Any]:
     if not layout.adapter_config.exists():
         return {}
-    return read_json(layout.adapter_config).get("graph", {})
+    graph_config = read_json(layout.adapter_config).get("graph", {})
+    return graph_config if isinstance(graph_config, dict) else {}
+
+
+def _graph_adapter_name(graph_config: Dict[str, Any]) -> str:
+    value = graph_config.get("adapter", graph_config.get("adapter_id", graph_config.get("type", "graphify")))
+    return str(value or "graphify")
+
+
+def _resolve_graph_adapter(adapter_name: str) -> GraphifyGraphAdapter | LocalFileGraphAdapter | None:
+    if adapter_name == "graphify":
+        return GraphifyGraphAdapter()
+    if adapter_name == "local_file":
+        return LocalFileGraphAdapter()
+    return None
+
+
+def _graph_adapter_label(adapter_id: str) -> str:
+    if adapter_id == "graphify":
+        return "Graphify"
+    if adapter_id == "local_file":
+        return "Local-file"
+    return adapter_id
 
 
 def _write_graph_health(layout: ProjectLayout, *, status: str, message: str) -> None:
@@ -115,8 +137,9 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
         graph_config = _read_adapter_config(layout)
         if graph_config.get("enabled") is False:
             return _degraded(layout, project.project_id, mode=mode, message="Graph adapter is disabled.", warnings=preparation.warnings)
-        adapter_name = graph_config.get("adapter", "local_file")
-        if adapter_name != "local_file":
+        adapter_name = _graph_adapter_name(graph_config)
+        adapter = _resolve_graph_adapter(adapter_name)
+        if adapter is None:
             return _degraded(
                 layout,
                 project.project_id,
@@ -127,7 +150,6 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         timestamp = now_utc()
         documents = _project_wiki_documents(layout)
-        adapter = LocalFileGraphAdapter()
         try:
             export, report = adapter.build(root=layout.root, document_paths=documents, generated_at=timestamp, mode=mode)
         except Exception as exc:  # pragma: no cover - defensive adapter boundary
@@ -164,7 +186,11 @@ def rebuild_graph(payload: Dict[str, Any]) -> Dict[str, Any]:
             created_at=timestamp,
         )
         _mark_project_graph_clean(layout, timestamp)
-        _write_graph_health(layout, status="healthy", message="Local-file graph adapter rebuilt project graph.")
+        _write_graph_health(
+            layout,
+            status="healthy",
+            message=f"{_graph_adapter_label(export['adapter_id'])} graph adapter rebuilt project graph.",
+        )
         hook_warnings = emit_event(
             layout,
             project.project_id,

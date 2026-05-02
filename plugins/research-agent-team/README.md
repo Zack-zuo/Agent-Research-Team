@@ -28,7 +28,7 @@ The package provides:
 - artifact indexing, visibility enforcement, activation permission manifests,
   budget warnings, durable report artifacts, and derived slot inbox/outbox views
 - Stage 5 knowledge commands for syncing slot/project wiki outputs and
-  rebuilding local-file graph exports under `shared/graph/`
+  rebuilding graphify-backed graph exports under `shared/graph/`
 - Stage 6 experiment commands for senior-defined, junior-executed experiment
   requests, local-file run publication, comparison outputs, review artifacts,
   and follow-up task creation

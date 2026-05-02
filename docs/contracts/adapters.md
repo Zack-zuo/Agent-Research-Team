@@ -1,6 +1,6 @@
 # Adapter Contract
 
-Adapters are optional local integration points used by application services. The v1 plugin ships local-file reference implementations for graph and experiment workflows. Missing, disabled, or failing optional adapters must degrade safely and must not corrupt unrelated canonical state.
+Adapters are optional local integration points used by application services. The v1 plugin ships a graphify-backed graph adapter by default, plus local-file reference implementations for graph fallback and experiment workflows. Missing, disabled, or failing optional adapters must degrade safely and must not corrupt unrelated canonical state.
 
 Adapter configuration lives in `state/adapters/config.json`. Adapter health lives in `state/adapters/health.json` and is normalized during Stage 7 preflight. The normalized shape is:
 
@@ -8,7 +8,7 @@ Adapter configuration lives in `state/adapters/config.json`. Adapter health live
 {
   "graph": {
     "status": "healthy",
-    "message": "Local-file graph adapter configured.",
+    "message": "Graphify graph adapter configured.",
     "updated_at": "2026-05-01T00:00:00Z"
   },
   "experiments": {
@@ -29,7 +29,8 @@ Status values should be `healthy`, `degraded`, or `unknown`. Legacy health recor
 Graph adapter behavior:
 
 - `rebuild_graph` consumes project-shared wiki artifacts.
-- The local-file adapter writes graph JSON and Markdown report artifacts under `shared/graph/`.
+- The default graphify adapter writes graph JSON and Markdown report artifacts under `shared/graph/`.
+- The legacy `local_file` graph adapter remains available when explicitly configured.
 - Disabled or unknown graph adapters return a degraded command result, persist degraded health, and leave unrelated task, activation, and approval state untouched.
 
 Experiment adapter behavior:

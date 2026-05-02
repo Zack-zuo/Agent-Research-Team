@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- made `graphify` the default graph adapter, with `local_file` retained as an explicit legacy fallback
+
 ## M8 - Stage 7
 
 - added shared health preflight for schema preparation, support-surface repair, adapter health normalization, integrity validation, stale recovery entrypoints, and warning-rich command results
