@@ -198,6 +198,20 @@ class Stage6ExperimentWorkflowTests(unittest.TestCase):
             self.assertIn("accepted", summary_text)
             self.assertNotIn("later roadmap stage", summary_text)
 
+            scoped_summary = self.run_command(
+                "generate_report",
+                {
+                    "root_path": str(project_root),
+                    "report_type": "experiment_summary",
+                    "scope_type": "experiment_run",
+                    "scope_id": run_id,
+                },
+            )
+            self.assertTrue(scoped_summary["ok"], scoped_summary)
+            scoped_text = (project_root / "shared" / "reports" / "experiment-summary-latest.md").read_text(encoding="utf-8")
+            self.assertIn(run_id, scoped_text)
+            self.assertIn("Experiment Run Count: 1", scoped_text)
+
     def test_disabled_experiment_adapter_fails_without_creating_canonical_work(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir) / "rat-project"

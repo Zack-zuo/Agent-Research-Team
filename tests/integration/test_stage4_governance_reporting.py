@@ -314,6 +314,45 @@ class Stage4GovernanceReportingTests(unittest.TestCase):
                 )
             self.assertEqual(raised.exception.code, "artifact_id_conflict")
 
+    def test_generate_report_rejects_invalid_experiment_run_scope_combination(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            result = self.run_command(
+                "generate_report",
+                {
+                    "root_path": str(project_root),
+                    "report_type": "status",
+                    "scope_type": "experiment_run",
+                    "scope_id": "experiment-run-missing",
+                },
+                check=False,
+            )
+
+            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["error"]["code"], "invalid_report_scope")
+
+    def test_generate_report_rejects_missing_non_project_scope_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project(project_root)
+
+            cases = [
+                {"report_type": "topology", "scope_type": "slot", "scope_id": "senior-99"},
+                {"report_type": "next_steps", "scope_type": "task", "scope_id": "task-missing"},
+                {"report_type": "experiment_summary", "scope_type": "experiment_run", "scope_id": "experiment-run-missing"},
+            ]
+            for case in cases:
+                with self.subTest(case=case):
+                    result = self.run_command(
+                        "generate_report",
+                        {"root_path": str(project_root), **case},
+                        check=False,
+                    )
+                    self.assertFalse(result["ok"], result)
+                    self.assertEqual(result["error"]["code"], "scope_not_found")
+
     def test_budget_override_approval_replay_queues_or_blocks_real_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             approved_root = Path(tmpdir) / "approved-project"

@@ -528,20 +528,50 @@ def _render_final_package(layout: ProjectLayout) -> tuple[str, List[str]]:
     return "\n".join(lines) + "\n", warnings
 
 
-def _validate_report_request(report_type: Any, scope_type: Any, scope_id: Optional[str]) -> tuple[str, str, Optional[str]]:
+def _validate_report_request(
+    layout: ProjectLayout, report_type: Any, scope_type: Any, scope_id: Optional[str]
+) -> tuple[str, str, Optional[str]]:
     if report_type not in REPORT_TYPES:
         raise CommandError("invalid_report_type", f"Unsupported report_type: {report_type}", report_type=report_type)
     if scope_type not in SCOPE_TYPES:
         raise CommandError("invalid_scope_type", f"Unsupported scope_type: {scope_type}", scope_type=scope_type)
+    normalized_scope_id = scope_id.strip() if isinstance(scope_id, str) and scope_id.strip() else None
     if report_type == "final_package" and scope_type != "project":
         raise CommandError("invalid_report_scope", "final_package supports project scope only", report_type=report_type, scope_type=scope_type)
-    if scope_type != "project" and (not isinstance(scope_id, str) or not scope_id.strip()):
+    if scope_type == "experiment_run" and report_type != "experiment_summary":
+        raise CommandError(
+            "invalid_report_scope",
+            "experiment_run scope supports experiment_summary only",
+            report_type=report_type,
+            scope_type=scope_type,
+        )
+    if scope_type != "project" and normalized_scope_id is None:
         raise CommandError("invalid_payload", "scope_id is required for non-project report scope", field="scope_id")
     if report_type == "experiment_summary" and scope_type not in {"project", "slot", "task", "experiment_run"}:
         raise CommandError("invalid_report_scope", "experiment_summary does not support this scope", report_type=report_type, scope_type=scope_type)
     if report_type == "literature_review" and scope_type == "task":
         raise CommandError("invalid_report_scope", "literature_review does not support task scope", report_type=report_type, scope_type=scope_type)
-    return str(report_type), str(scope_type), scope_id.strip() if isinstance(scope_id, str) and scope_id.strip() else None
+    if normalized_scope_id is not None and not _report_scope_exists(layout, str(scope_type), normalized_scope_id):
+        raise CommandError(
+            "scope_not_found",
+            f"Report scope does not exist: {scope_type}:{normalized_scope_id}",
+            scope_type=scope_type,
+            scope_id=normalized_scope_id,
+        )
+    return str(report_type), str(scope_type), normalized_scope_id
+
+
+def _report_scope_exists(layout: ProjectLayout, scope_type: str, scope_id: str) -> bool:
+    try:
+        if scope_type == "slot":
+            return layout.slot_state_path(scope_id).exists()
+        if scope_type == "task":
+            return layout.task_state_path(scope_id).exists()
+        if scope_type == "experiment_run":
+            return layout.experiment_run_state_path(scope_id).exists()
+    except ValueError:
+        return False
+    return True
 
 
 def _write_report(layout: ProjectLayout, report_type: str, content: str, source_artifact_ids: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -571,7 +601,7 @@ def _generate_report_locked(
     scope_id: Optional[str],
     allow_pending_approval: bool,
 ) -> Dict[str, Any]:
-    report_type, scope_type, scope_id = _validate_report_request(report_type, scope_type, scope_id)
+    report_type, scope_type, scope_id = _validate_report_request(layout, report_type, scope_type, scope_id)
     if report_type == "final_package" and allow_pending_approval:
         policy = read_json(layout.state_dir / "policies" / "approvals.json")
         final_package_policy = policy.get("final_package", "user")
