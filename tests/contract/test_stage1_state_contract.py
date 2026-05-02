@@ -100,6 +100,10 @@ class Stage1StateContractTests(unittest.TestCase):
             schema = json.loads((PLUGIN_ROOT / "schemas" / relative_path).read_text(encoding="utf-8"))
             self.assertTrue(required_keys.issubset(set(schema["required"])), relative_path)
 
+        artifact_schema = json.loads((PLUGIN_ROOT / "schemas" / "state" / "artifact.schema.json").read_text(encoding="utf-8"))
+        self.assertIn("producing_slot_id", artifact_schema["properties"])
+        self.assertNotIn("producer_slot_id", artifact_schema["properties"])
+
 
 if __name__ == "__main__":
     unittest.main()

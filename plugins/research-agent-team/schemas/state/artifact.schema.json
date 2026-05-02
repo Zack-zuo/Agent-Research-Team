@@ -9,6 +9,6 @@
     "artifact_id": {"type": "string"},
     "path": {"type": "string"},
     "visibility": {"type": "string"},
-    "producer_slot_id": {"type": "string"}
+    "producing_slot_id": {"type": "string"}
   }
 }
