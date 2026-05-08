@@ -132,6 +132,9 @@ class RatMcpWorkflowTests(unittest.TestCase):
             self.assertIn("activation_callback", tool_names)
             self.assertIn("plan_launches", tool_names)
             self.assertIn("render_launch_prompt", tool_names)
+            self.assertIn("execution_start_pending", tool_names)
+            self.assertIn("execution_attach_subagent", tool_names)
+            self.assertIn("execution_reconcile", tool_names)
 
             self._send(
                 process,
@@ -151,6 +154,33 @@ class RatMcpWorkflowTests(unittest.TestCase):
         finally:
             process.kill()
             process.communicate(timeout=5)
+
+    def test_execution_start_pending_mcp_uses_fake_subagent_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "rat-project"
+            self.create_project(root)
+            assigned = mcp_server.run_command(
+                "assign_task",
+                {
+                    "root_path": str(root),
+                    "requester_slot_id": "supervisor",
+                    "owner_slot_id": "senior-01",
+                    "title": "Review notes",
+                    "description": "Review shared notes and write a summary.",
+                    "success_criteria": ["Write summary"],
+                },
+            )
+            activation_id = assigned["result"]["launch_request"]["activation_id"]
+
+            started = mcp_server.execution_start_pending(
+                str(root),
+                adapter_name="fake-subagent",
+                fake_launch_status="spawned",
+            )
+
+            self.assertTrue(started["ok"], started)
+            self.assertEqual(started["result"]["started_count"], 1)
+            self.assertEqual(started["result"]["subagent_launch_requests"][0]["activation_id"], activation_id)
 
     def _send(self, process: subprocess.Popen[str], message: dict[str, Any]) -> None:
         assert process.stdin is not None

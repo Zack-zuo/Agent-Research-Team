@@ -4,7 +4,9 @@ ResearchAgentTeam commands are exposed through both the plugin MCP server and `r
 
 Natural-language interpretation is exposed through `research-agent-team-codex interpret --text "<request>"`. It is a read-only planning surface, not a state transition. The interpreter returns a structured command plan with `intent`, `confidence`, `command_name`, `payload`, `missing_fields`, `ambiguous_references`, `resolved_references`, `needs_confirmation`, `confirmation_reason`, `warnings`, `validation_errors`, and `ready_for_execution`. Callers must dispatch the planned command separately after applying their confirmation policy.
 
-Codex-side launch automation is exposed through the MCP `plan_launches` tool and `research-agent-team-codex plan-launches`. It accepts a prior command or activation callback result and returns launch decisions without mutating canonical project state. The default `conservative` policy permits automatic launch only for clear, non-experiment, non-approval activations that still match starting activation, admitted task, owner slot, and materialized bundle state. Experiments, approval replay, review follow-ups, high-budget or long-running work, unclear scopes, invalid state, and stale activations return confirmation or error decisions instead.
+Codex-side launch planning is exposed through the MCP `plan_launches` tool and `research-agent-team-codex plan-launches`. It accepts a prior command or activation callback result and returns launch decisions without mutating canonical project state. The default `conservative` policy permits automatic launch only for clear, non-experiment, non-approval activations that still match starting activation, admitted task, owner slot, and materialized bundle state. Experiments, approval replay, review follow-ups, high-budget or long-running work, unclear scopes, invalid state, and stale activations return confirmation or error decisions instead.
+
+Managed execution is exposed through the MCP `execution_*` tools and `research-agent-team-codex execution <subcommand>`. Codex is the host and the plugin runs inside it: `execution_start_pending` renders launch prompts, writes worker metadata, and returns `subagent_launch_requests` for the Codex supervisor to spawn. The supervisor records the returned host handle with `execution_attach_subagent`. Worker callbacks remain the canonical way for subagents to mark running, heartbeat, checkpoint, complete, or fail.
 
 All state-sensitive commands except `create_project` run the Stage 7 preflight under the project lock before their main transition. Preflight may migrate a supported schema, repair support surfaces, normalize adapter health, validate integrity, and return warnings. Warnings are non-fatal and must be preserved in the command result. Fatal preflight failures return `ok: false` with a stable `error.code`.
 
@@ -47,12 +49,20 @@ MCP workflow tools:
 - `activation_callback`: runs activation callbacks and includes `launch_plan` for follow-up work.
 - `plan_launches`: classifies launch requests from prior results.
 - `render_launch_prompt`: renders an approved launch request into a worker prompt.
+- `execution_plan_pending`: inspects pending activation launches and concurrency capacity.
+- `execution_start_pending`: renders prompts, persists worker state, and returns Codex subagent spawn requests.
+- `execution_attach_subagent`: records a Codex host subagent/session handle.
+- `execution_inspect`, `execution_cancel`, `execution_reconcile`: operate on managed worker records.
 
 Launch handling flow:
 
 1. Run a command or callback through MCP or the CLI bridge.
 2. Use the attached MCP `launch_plan`, or pass the full JSON result to `plan-launches`.
-3. For `auto_launch`, render the sanitized launch request with MCP `render_launch_prompt` or CLI `render-launch-prompt`, then launch a Codex worker with only that rendered prompt.
+3. For `auto_launch`, prefer `execution_start_pending`; it stores `launch-prompt.md`, reserves `worker.json`, writes `worker-events.jsonl`, then returns Codex subagent spawn requests.
 4. For `confirm_launch`, ask the user before rendering and launching.
-5. For `error`, leave canonical state untouched and report the activation, task, and slot state paths.
-6. After worker completion or failure callbacks, inspect any `next_launch_request` and repeat the same flow.
+5. After the Codex host spawns a subagent, call `execution_attach_subagent` with the host handle.
+6. For `error`, leave canonical state untouched and report the activation, task, and slot state paths.
+7. After worker completion or failure callbacks, inspect any `next_launch_request` and repeat the same flow.
+8. Use `execution_reconcile` to mark stale worker metadata and reflect terminal activation state.
+
+`execution_start_pending` must not bypass confirmation decisions. It starts only pending launches classified as `auto_launch`; all confirmation, error, and blocked decisions are returned as blocked launch records. Worker reservation is written while holding the project lock so concurrent supervisors cannot receive duplicate spawn requests for the same activation.

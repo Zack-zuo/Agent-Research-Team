@@ -100,6 +100,98 @@ def render_launch_prompt(root_path: str, launch_request: dict[str, Any]) -> dict
     return rendered
 
 
+@_tool
+def execution_plan_pending(root_path: str, max_concurrent: int = 1, policy: str = "conservative") -> dict[str, Any]:
+    """Inspect pending activation launches without spawning Codex subagents."""
+
+    return bridge.execution_plan_pending(root_path, max_concurrent=max_concurrent, policy=policy)
+
+
+@_tool
+def execution_start_pending(
+    root_path: str,
+    adapter_name: str = "codex-subagent",
+    max_concurrent: int = 1,
+    timeout_seconds: int = 180,
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    """Render prompts, record worker state, and return Codex subagent spawn requests."""
+
+    return bridge.execution_start_pending(
+        root_path,
+        adapter_name=adapter_name,
+        max_concurrent=max_concurrent,
+        timeout_seconds=timeout_seconds,
+        fake_launch_status=fake_launch_status,
+        fake_observe_status=fake_observe_status,
+        fake_cancel_status=fake_cancel_status,
+        fake_failure_summary=fake_failure_summary,
+    )
+
+
+@_tool
+def execution_attach_subagent(root_path: str, activation_id: str, handle: str) -> dict[str, Any]:
+    """Attach a Codex host subagent/session handle to a worker record."""
+
+    return bridge.execution_attach_subagent(root_path, activation_id, handle)
+
+
+@_tool
+def execution_inspect(root_path: str) -> dict[str, Any]:
+    """Inspect active worker records and their activation state."""
+
+    return bridge.execution_inspect(root_path)
+
+
+@_tool
+def execution_cancel(
+    root_path: str,
+    activation_id: str,
+    reason: str,
+    adapter_name: str = "codex-subagent",
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    """Request cancellation for an active worker activation."""
+
+    return bridge.execution_cancel(
+        root_path,
+        activation_id,
+        reason,
+        adapter_name=adapter_name,
+        fake_launch_status=fake_launch_status,
+        fake_observe_status=fake_observe_status,
+        fake_cancel_status=fake_cancel_status,
+        fake_failure_summary=fake_failure_summary,
+    )
+
+
+@_tool
+def execution_reconcile(
+    root_path: str,
+    adapter_name: str = "codex-subagent",
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    """Reconcile worker records with activation state and adapter observations."""
+
+    return bridge.execution_reconcile(
+        root_path,
+        adapter_name=adapter_name,
+        fake_launch_status=fake_launch_status,
+        fake_observe_status=fake_observe_status,
+        fake_cancel_status=fake_cancel_status,
+        fake_failure_summary=fake_failure_summary,
+    )
+
+
 def main() -> int:
     if mcp is None:
         print("The 'mcp' Python package is required to run the ResearchAgentTeam MCP server.", file=sys.stderr)

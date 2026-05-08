@@ -121,6 +121,115 @@ def render_launch_prompt_for_request(root_path: str, launch_request: dict[str, A
         return error(exc.to_dict())
 
 
+def _worker_adapter(
+    adapter_name: str,
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> Any:
+    from research_agent_team.runtime.worker_launch import adapter_from_name
+
+    try:
+        return adapter_from_name(
+            adapter_name,
+            fake_launch_status=fake_launch_status,
+            fake_observe_status=fake_observe_status,
+            fake_cancel_status=fake_cancel_status,
+            fake_failure_summary=fake_failure_summary,
+        )
+    except ValueError as exc:
+        raise CommandError("invalid_payload", str(exc), field="adapter") from exc
+
+
+def execution_plan_pending(root_path: str, max_concurrent: int = 1, policy: str = "conservative") -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import plan_pending_launches
+
+    try:
+        return ok(plan_pending_launches(root_path, max_concurrent=max_concurrent, policy=policy))
+    except CommandError as exc:
+        return error(exc.to_dict())
+
+
+def execution_start_pending(
+    root_path: str,
+    adapter_name: str = "codex-subagent",
+    max_concurrent: int = 1,
+    timeout_seconds: int = 180,
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import start_pending_launches
+
+    try:
+        adapter = _worker_adapter(adapter_name, fake_launch_status, fake_observe_status, fake_cancel_status, fake_failure_summary)
+        return ok(start_pending_launches(root_path, adapter=adapter, max_concurrent=max_concurrent, timeout_seconds=timeout_seconds))
+    except CommandError as exc:
+        return error(exc.to_dict())
+    except ValueError as exc:
+        return invalid_payload(str(exc))
+
+
+def execution_attach_subagent(root_path: str, activation_id: str, handle: str) -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import attach_subagent
+
+    try:
+        return ok(attach_subagent(root_path, activation_id, handle))
+    except CommandError as exc:
+        return error(exc.to_dict())
+
+
+def execution_inspect(root_path: str) -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import inspect_running_activations
+
+    try:
+        return ok(inspect_running_activations(root_path))
+    except CommandError as exc:
+        return error(exc.to_dict())
+
+
+def execution_cancel(
+    root_path: str,
+    activation_id: str,
+    reason: str,
+    adapter_name: str = "codex-subagent",
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import cancel_running_activation
+
+    try:
+        adapter = _worker_adapter(adapter_name, fake_launch_status, fake_observe_status, fake_cancel_status, fake_failure_summary)
+        return ok(cancel_running_activation(root_path, activation_id, reason, adapter=adapter))
+    except CommandError as exc:
+        return error(exc.to_dict())
+    except ValueError as exc:
+        return invalid_payload(str(exc))
+
+
+def execution_reconcile(
+    root_path: str,
+    adapter_name: str = "codex-subagent",
+    fake_launch_status: str = "running",
+    fake_observe_status: str = "running",
+    fake_cancel_status: str = "cancelled",
+    fake_failure_summary: str = "Fake subagent failed.",
+) -> dict[str, Any]:
+    from research_agent_team.runtime.execution_loop import reconcile_activations
+
+    try:
+        adapter = _worker_adapter(adapter_name, fake_launch_status, fake_observe_status, fake_cancel_status, fake_failure_summary)
+        return ok(reconcile_activations(root_path, adapter=adapter))
+    except CommandError as exc:
+        return error(exc.to_dict())
+    except ValueError as exc:
+        return invalid_payload(str(exc))
+
+
 def with_launch_plan(
     envelope: dict[str, Any],
     root_path: str | None,
@@ -231,6 +340,12 @@ def _payload_or_empty(payload: dict[str, Any] | None) -> dict[str, Any]:
 __all__ = [
     "ACTIVATION_COMMAND_NAMES",
     "COMMAND_NAMES",
+    "execution_attach_subagent",
+    "execution_cancel",
+    "execution_inspect",
+    "execution_plan_pending",
+    "execution_reconcile",
+    "execution_start_pending",
     "interpret_request",
     "load_command_handler",
     "plan_launches_for_result",

@@ -14,6 +14,14 @@ Required top-level paths:
 - `state/knowledge/`, `state/experiments/`, `state/migrations/`, `state/hooks/`: knowledge, experiment, migration, and hook support state.
 - `state/events/*.jsonl` and `state/artifacts/index.jsonl`: append-only audit surfaces.
 
+Managed execution adds per-activation worker files under `agents/<slot-id>/activations/<activation-id>/`:
+
+- `launch-prompt.md`: rendered prompt handed to the Codex subagent.
+- `worker.json`: plugin-managed worker metadata such as adapter, status, host handle, prompt path, timeout, timestamps, cancellation reason, and diagnostics.
+- `worker-events.jsonl`: append-only worker lifecycle log for launch, attach, observation, cancellation, and reconciliation events.
+
+These worker files are operational metadata. Canonical lifecycle truth remains in `state/activations/*.json`, `state/tasks/*.json`, and `state/slots/*.json`.
+
 Stage 7 preflight may recreate support or derived surfaces when they are missing. Repairable surfaces include state directories, hook configuration, hook logs, daily event and message logs, artifact index files, slot inbox/outbox folders, and latest aliases for timestamped report or graph outputs. Preflight must not fabricate missing canonical business entities such as tasks, slots, activations, approvals, experiment requests, runs, comparisons, or reviews.
 
 Integrity validation checks that references across canonical entities point to existing records. It rejects tasks with missing owners, activations with missing slots or tasks, slots with missing current activations, multiple active activations for one slot, malformed experiment references, invalid approval targets, and artifact paths that escape the project root.

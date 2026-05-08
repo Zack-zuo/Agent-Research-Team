@@ -8,6 +8,7 @@ Use this runbook when worker activations fail, stop sending heartbeats, are inte
 2. Run `request_status`. The status report shows active, queued, blocked, and completed work plus budget hard stops and warnings.
 3. Inspect the activation record under `state/activations/<activation-id>.json`.
 4. Inspect the owner slot under `state/slots/<slot-id>.json` and the task under `state/tasks/<task-id>.json`.
+5. If the activation was managed by the execution loop, inspect `agents/<slot-id>/activations/<activation-id>/worker.json` and `worker-events.jsonl`.
 
 ## Common outcomes
 
@@ -15,6 +16,8 @@ Use this runbook when worker activations fail, stop sending heartbeats, are inte
 - `interrupted`: recovery found stale work. If a checkpoint exists, the task may be requeued with resume context. Without a checkpoint, the task may be blocked.
 - `cancelled`: the supervisor cancelled the activation. Confirm whether follow-up work is needed.
 - `running` with old heartbeat: run `open_project` again to force stale recovery.
+- worker `launch_requested` without a handle: the Codex supervisor did not attach a spawned subagent. Spawn the subagent from the stored prompt or cancel the activation.
+- worker `spawned` or `running` with terminal activation state: run `research-agent-team-codex execution reconcile --root-path <project-root>` to update worker metadata.
 
 ## Budget hard stops
 
@@ -32,3 +35,11 @@ Do not clear hard-stop state by editing only reports or inbox views. Use approva
 Restore canonical state first. Missing task, slot, or activation records are fatal integrity failures because derived views cannot safely repair them. Use filesystem backups, migration backups, or version-control snapshots before editing JSON by hand.
 
 After manual recovery, run `open_project` followed by `request_status`. If both succeed, use `resume_project` when queued work should continue.
+
+For managed execution, use these commands before hand-editing worker metadata:
+
+```bash
+research-agent-team-codex execution inspect --root-path <project-root>
+research-agent-team-codex execution reconcile --root-path <project-root>
+research-agent-team-codex execution cancel --root-path <project-root> --activation-id <activation-id> --reason operator_recovery
+```

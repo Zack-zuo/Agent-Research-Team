@@ -125,8 +125,11 @@ When the MCP tools are available, Codex should use them before shelling out to t
 - `activation_callback`: update activation state and attach launch planning for follow-up work.
 - `plan_launches`: classify launch requests from a previous command or callback result.
 - `render_launch_prompt`: render an approved launch request into a worker prompt.
+- `execution_start_pending`: render prompts, persist worker state, and return Codex subagent spawn requests.
+- `execution_attach_subagent`: attach the Codex host subagent/session handle after spawn.
+- `execution_inspect`, `execution_cancel`, `execution_reconcile`: inspect, cancel, and reconcile managed workers.
 
-The MCP tools do not spawn workers directly. They return enough structure for Codex to decide whether to auto-launch, ask for confirmation, or report an error.
+Codex is the host and the plugin runs inside it. The execution tools do not wrap Codex; they return structured subagent spawn requests for the Codex supervisor to spawn, then record the host handle and reconcile callbacks against project state.
 
 Use the CLI bridge when MCP tools are unavailable or when you are operating from a terminal:
 
@@ -309,9 +312,47 @@ Launch decisions:
 
 The default `conservative` policy auto-launches only clear, non-experiment, non-approval activations that are still in `starting` state and have a low-risk budget. Experiments, approval replay, review follow-ups, unclear scope, stale state, and high-budget work require confirmation or error handling.
 
-### 7. Render A Worker Prompt
+### 7. Start Managed Codex Subagents
 
-After a launch decision is approved, render the sanitized launch request:
+Use the managed execution loop when you want the plugin to render prompts, store worker metadata, and return Codex subagent spawn requests:
+
+```bash
+research-agent-team-codex execution start-pending \
+  --root-path "/absolute/path/to/my-research-project" \
+  --adapter codex-subagent \
+  --max-concurrent 1 \
+  --timeout-seconds 180
+```
+
+`execution start-pending` preserves the conservative launch policy. It starts only `auto_launch` activations. Experiment work, approval replay, review follow-ups, high-budget launches, and invalid launch requests remain in `blocked_launches` until the operator handles the confirmation path.
+
+For each returned `subagent_launch_requests[]` item, the Codex supervisor should spawn a subagent with the supplied prompt. After Codex returns a session or subagent handle, attach it:
+
+```bash
+research-agent-team-codex execution attach-subagent \
+  --root-path "/absolute/path/to/my-research-project" \
+  --activation-id activation-id \
+  --handle codex-session-id
+```
+
+The execution loop stores `launch-prompt.md`, `worker.json`, and `worker-events.jsonl` under the activation directory. Use `execution inspect`, `execution cancel`, and `execution reconcile` for operator control:
+
+```bash
+research-agent-team-codex execution inspect --root-path "/absolute/path/to/my-research-project"
+research-agent-team-codex execution cancel --root-path "/absolute/path/to/my-research-project" --activation-id activation-id --reason operator_cancelled
+research-agent-team-codex execution reconcile --root-path "/absolute/path/to/my-research-project"
+```
+
+For deterministic local tests and demos, use the fake subagent boundary:
+
+```bash
+research-agent-team-codex execution start-pending \
+  --root-path "/absolute/path/to/my-research-project" \
+  --adapter fake-subagent \
+  --fake-launch-status running
+```
+
+Manual prompt rendering remains available for host workflows that do not use the managed loop:
 
 ```bash
 research-agent-team-codex render-launch-prompt \
@@ -319,7 +360,7 @@ research-agent-team-codex render-launch-prompt \
   --payload-file launch-request.json > worker-prompt.md
 ```
 
-If you are using MCP, pass the approved `launch_request` object to `render_launch_prompt`. The worker should receive only the rendered prompt and the bundle context embedded in that prompt.
+The worker should receive only the rendered prompt and the bundle context embedded in that prompt.
 
 ### 8. Complete Or Fail An Activation
 
@@ -504,7 +545,7 @@ Supported `scope_type` values are `project`, `slot`, `task`, and `experiment_run
 | Knowledge and graph | `sync_knowledge_base`, `rebuild_graph` |
 | Experiments | `run_experiment`, `review_experiment` |
 | Activation callbacks | `mark-running`, `heartbeat`, `checkpoint`, `complete`, `fail`, `interrupt`, `cancel` |
-| Launch handling | `plan-launches`, `render-launch-prompt` |
+| Launch and execution | `plan-launches`, `render-launch-prompt`, `execution plan-pending`, `execution start-pending`, `execution attach-subagent`, `execution inspect`, `execution cancel`, `execution reconcile` |
 | Natural language | `interpret` CLI mode or MCP `interpret_request` |
 
 All public commands return one JSON envelope:

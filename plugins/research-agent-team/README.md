@@ -39,9 +39,12 @@ The package provides:
   maps user requests to structured command plans without executing them
 - Codex-side launch planning through `plan-launches`, which classifies command
   `launch_request` results before Codex renders prompts and spawns workers
+- managed execution-loop commands that store activation prompts and worker
+  metadata while returning Codex subagent spawn requests to the host
 - a local STDIO MCP server exposing workflow tools for interpretation,
   command execution with launch planning, activation callbacks with follow-up
-  planning, standalone launch planning, and launch prompt rendering
+  planning, standalone launch planning, launch prompt rendering, and managed
+  execution
 - deterministic domain, storage, config, and shared helpers for the project
   filesystem contract
 - JSON Schema coverage for command, state, event, adapter, and manifest shapes
@@ -84,18 +87,27 @@ missing, ambiguous, or invalid plans.
 ## MCP Workflow Surface
 
 Codex loads the plugin MCP server from `mcp/.mcp.json`. The server runs over
-STDIO and exposes five workflow tools:
+STDIO and exposes workflow tools including:
 
 - `interpret_request`
 - `run_command`
 - `activation_callback`
 - `plan_launches`
 - `render_launch_prompt`
+- `execution_plan_pending`
+- `execution_start_pending`
+- `execution_attach_subagent`
+- `execution_inspect`
+- `execution_cancel`
+- `execution_reconcile`
 
 `run_command` and `activation_callback` automatically attach a conservative
-`launch_plan` when a usable project `root_path` is available. MCP tools do not
-spawn workers directly; `auto_launch` and `confirm_launch` decisions still need
-the Codex host workflow to render prompts and launch subagents.
+`launch_plan` when a usable project `root_path` is available. The execution
+tools render activation prompts, write `worker.json` and `worker-events.jsonl`
+under the activation directory, and return structured Codex subagent spawn
+requests. Codex remains the host: the supervisor spawns the subagent, then calls
+`execution_attach_subagent` with the host session handle. Managed start preserves
+launch confirmation gates and starts only `auto_launch` decisions.
 
 For source checkouts, the MCP server can be started directly:
 
@@ -105,3 +117,23 @@ uv run --project . python ./scripts/rat_plugin_mcp.py
 
 The CLI bridge remains available as a fallback and for worker callback commands
 embedded in rendered activation prompts.
+
+Managed execution can be driven from the CLI:
+
+```bash
+research-agent-team-codex execution start-pending \
+  --root-path "/absolute/path/to/project" \
+  --adapter codex-subagent \
+  --max-concurrent 1
+
+research-agent-team-codex execution attach-subagent \
+  --root-path "/absolute/path/to/project" \
+  --activation-id activation-id \
+  --handle codex-session-id
+
+research-agent-team-codex execution reconcile \
+  --root-path "/absolute/path/to/project"
+```
+
+Use `--adapter fake-subagent` with fake launch/observe/cancel statuses for
+deterministic tests and smoke runs.

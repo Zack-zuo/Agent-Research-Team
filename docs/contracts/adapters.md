@@ -39,4 +39,11 @@ Experiment adapter behavior:
 - The local-file adapter prepares and publishes deterministic filesystem evidence.
 - Disabled or unavailable experiment adapters fail before fabricating successful experiment output.
 
+Worker launch adapter behavior:
+
+- `CodexSubagentLaunchAdapter` is the default managed-execution boundary. It does not wrap Codex or spawn a local process; it returns structured subagent spawn requests for the Codex host and records host-provided handles.
+- `FakeSubagentLaunchAdapter` is deterministic test infrastructure. It can simulate spawned, running, completed, failed, cancelled, and stale outcomes while the real execution loop still performs state transitions.
+- Worker metadata is stored in each activation directory as `launch-prompt.md`, `worker.json`, and `worker-events.jsonl`. Canonical truth remains in `state/activations`, `state/tasks`, and `state/slots`.
+- Real subagents must use the existing activation callback contract. Reconciliation may reflect terminal callback state, recover stale activations, or request host cancellation; it must not fabricate task success without a worker outcome or callback.
+
 New adapters should be introduced behind application-layer ports and must update adapter health with useful operator-facing messages.

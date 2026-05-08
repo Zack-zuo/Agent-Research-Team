@@ -103,6 +103,71 @@ def run_plan_launches(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") else 1
 
 
+def _fake_adapter_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "fake_launch_status": getattr(args, "fake_launch_status", "running"),
+        "fake_observe_status": getattr(args, "fake_observe_status", "running"),
+        "fake_cancel_status": getattr(args, "fake_cancel_status", "cancelled"),
+        "fake_failure_summary": getattr(args, "fake_failure_summary", "Fake subagent failed."),
+    }
+
+
+def run_execution_plan_pending(args: argparse.Namespace) -> int:
+    result = bridge.execution_plan_pending(args.root_path, max_concurrent=args.max_concurrent, policy=args.policy)
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def run_execution_start_pending(args: argparse.Namespace) -> int:
+    result = bridge.execution_start_pending(
+        args.root_path,
+        adapter_name=args.adapter,
+        max_concurrent=args.max_concurrent,
+        timeout_seconds=args.timeout_seconds,
+        **_fake_adapter_kwargs(args),
+    )
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def run_execution_attach_subagent(args: argparse.Namespace) -> int:
+    result = bridge.execution_attach_subagent(args.root_path, args.activation_id, args.handle)
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def run_execution_inspect(args: argparse.Namespace) -> int:
+    result = bridge.execution_inspect(args.root_path)
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def run_execution_cancel(args: argparse.Namespace) -> int:
+    result = bridge.execution_cancel(
+        args.root_path,
+        args.activation_id,
+        args.reason,
+        adapter_name=args.adapter,
+        **_fake_adapter_kwargs(args),
+    )
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def run_execution_reconcile(args: argparse.Namespace) -> int:
+    result = bridge.execution_reconcile(args.root_path, adapter_name=args.adapter, **_fake_adapter_kwargs(args))
+    _dump_json(result)
+    return 0 if result.get("ok") else 1
+
+
+def _add_execution_adapter_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--adapter", choices=("codex-subagent", "fake-subagent"), default="codex-subagent")
+    parser.add_argument("--fake-launch-status", choices=("launch_requested", "spawned", "running", "completed", "failed", "interrupted", "cancelled"), default="running")
+    parser.add_argument("--fake-observe-status", choices=("unknown", "spawned", "running", "completed", "failed", "interrupted", "cancelled", "stale"), default="running")
+    parser.add_argument("--fake-cancel-status", choices=("cancel_requested", "cancelled"), default="cancelled")
+    parser.add_argument("--fake-failure-summary", default="Fake subagent failed.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="research-agent-team-codex")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -144,6 +209,44 @@ def build_parser() -> argparse.ArgumentParser:
     plan_launches_parser.add_argument("--payload-json")
     plan_launches_parser.add_argument("--payload-file")
     plan_launches_parser.set_defaults(func=run_plan_launches)
+
+    execution_parser = subparsers.add_parser("execution", help="Manage Codex subagent execution-loop state.")
+    execution_subparsers = execution_parser.add_subparsers(dest="execution_command", required=True)
+
+    execution_plan_parser = execution_subparsers.add_parser("plan-pending", help="Inspect pending activation launches.")
+    execution_plan_parser.add_argument("--root-path", required=True)
+    execution_plan_parser.add_argument("--max-concurrent", type=int, default=1)
+    execution_plan_parser.add_argument("--policy", choices=("conservative", "confirm_all"), default="conservative")
+    execution_plan_parser.set_defaults(func=run_execution_plan_pending)
+
+    execution_start_parser = execution_subparsers.add_parser("start-pending", help="Create Codex subagent spawn requests for pending launches.")
+    execution_start_parser.add_argument("--root-path", required=True)
+    execution_start_parser.add_argument("--max-concurrent", type=int, default=1)
+    execution_start_parser.add_argument("--timeout-seconds", type=int, default=180)
+    _add_execution_adapter_args(execution_start_parser)
+    execution_start_parser.set_defaults(func=run_execution_start_pending)
+
+    execution_attach_parser = execution_subparsers.add_parser("attach-subagent", help="Record a Codex host handle for an activation worker.")
+    execution_attach_parser.add_argument("--root-path", required=True)
+    execution_attach_parser.add_argument("--activation-id", required=True)
+    execution_attach_parser.add_argument("--handle", required=True)
+    execution_attach_parser.set_defaults(func=run_execution_attach_subagent)
+
+    execution_inspect_parser = execution_subparsers.add_parser("inspect", help="Inspect active execution workers.")
+    execution_inspect_parser.add_argument("--root-path", required=True)
+    execution_inspect_parser.set_defaults(func=run_execution_inspect)
+
+    execution_cancel_parser = execution_subparsers.add_parser("cancel", help="Request cancellation for an active execution worker.")
+    execution_cancel_parser.add_argument("--root-path", required=True)
+    execution_cancel_parser.add_argument("--activation-id", required=True)
+    execution_cancel_parser.add_argument("--reason", required=True)
+    _add_execution_adapter_args(execution_cancel_parser)
+    execution_cancel_parser.set_defaults(func=run_execution_cancel)
+
+    execution_reconcile_parser = execution_subparsers.add_parser("reconcile", help="Reconcile workers with activation state.")
+    execution_reconcile_parser.add_argument("--root-path", required=True)
+    _add_execution_adapter_args(execution_reconcile_parser)
+    execution_reconcile_parser.set_defaults(func=run_execution_reconcile)
 
     return parser
 
