@@ -113,6 +113,7 @@ COMMAND_SPECS: Dict[str, CommandSpec] = {
             "root_path": "string",
             "requester_slot_id": "string",
             "executor_slot_id": "string",
+            "adapter_type": "string",
             "title": "string",
             "objective": "string",
             "hypothesis": "string",

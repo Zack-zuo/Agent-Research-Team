@@ -9,6 +9,7 @@
     "root_path": {"type": "string"},
     "requester_slot_id": {"type": "string"},
     "executor_slot_id": {"type": "string"},
+    "adapter_type": {"type": "string", "enum": ["local_file", "local_command"]},
     "title": {"type": "string"},
     "objective": {"type": "string"},
     "hypothesis": {"type": "string"},

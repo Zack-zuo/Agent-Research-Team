@@ -485,6 +485,34 @@ research-agent-team-codex command run_experiment --payload-json '{
 }'
 ```
 
+To execute a real local command instead of the deterministic local-file adapter, opt into `local_command` and pass an argv command. The command runs offline in a project-contained working directory, with `RAT_EXPERIMENT_RUN_ROOT`, `RAT_EXPERIMENT_OUTPUT_DIR`, and related environment variables available:
+
+```bash
+research-agent-team-codex command run_experiment --payload-json '{
+  "root_path": "/absolute/path/to/my-research-project",
+  "requester_slot_id": "senior-01",
+  "executor_slot_id": "junior-01",
+  "adapter_type": "local_command",
+  "title": "Run baseline script",
+  "objective": "Execute the local baseline script and collect metrics.",
+  "hypothesis": "The script produces reproducible metrics.",
+  "method": "Run scripts/baseline.py with local inputs only.",
+  "success_criteria": ["Publish logs, metrics, outputs, and git diff"],
+  "input_path_roots": ["shared/raw"],
+  "expected_output_types": ["logs", "json"],
+  "run_parameters": {
+    "allow_command_execution": true,
+    "working_directory": "shared/raw",
+    "timeout_seconds": 300,
+    "command": ["python", "scripts/baseline.py"],
+    "metrics_files": ["metrics.json"],
+    "output_paths": ["results.json"]
+  }
+}'
+```
+
+`local_command` writes stdout/stderr logs, execution metadata, environment metadata, git before/after state, diff summaries/full diffs when small enough, generated outputs, and parsed metrics under `experiments/runs/<experiment-run-id>/`. JSON metrics files must contain an object; text metrics support simple `key=value` or `key: value` lines. Nonzero exits and timeouts produce reviewable experiment results, while metrics parse failures are non-fatal diagnostics.
+
 After the experiment activation completes, review the experiment run:
 
 ```bash

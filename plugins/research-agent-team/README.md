@@ -30,8 +30,9 @@ The package provides:
 - Stage 5 knowledge commands for syncing slot/project wiki outputs and
   rebuilding graphify-backed graph exports under `shared/graph/`
 - Stage 6 experiment commands for senior-defined, junior-executed experiment
-  requests, local-file run publication, comparison outputs, review artifacts,
-  and follow-up task creation
+  requests, local-file run publication, opt-in local command execution with
+  logs/metrics/git capture, comparison outputs, review artifacts, and follow-up
+  task creation
 - Stage 7 hardening for command preflight, supported schema migration, adapter
   health normalization, best-effort hook delivery, integrity validation, and
   release packaging checks
@@ -137,3 +138,31 @@ research-agent-team-codex execution reconcile \
 
 Use `--adapter fake-subagent` with fake launch/observe/cancel statuses for
 deterministic tests and smoke runs.
+
+## Local Command Experiments
+
+The default experiment adapter remains `local_file`. To run a real local
+command, pass `adapter_type: "local_command"` to `run_experiment` and include an
+explicit safety opt-in:
+
+```json
+{
+  "adapter_type": "local_command",
+  "run_parameters": {
+    "allow_command_execution": true,
+    "working_directory": "shared/raw",
+    "timeout_seconds": 300,
+    "command": ["python", "scripts/baseline.py"],
+    "metrics_files": ["metrics.json"],
+    "output_paths": ["results.json"]
+  }
+}
+```
+
+Commands are executed without a shell, inside the project root, and never under
+`state/`. Publication stores stdout/stderr logs, execution metadata,
+environment metadata, git state/diffs, generated outputs, metrics files, and
+the result record under `experiments/runs/<experiment-run-id>/`, then indexes
+those artifacts as project-shared evidence. JSON metrics files must contain an
+object; text metrics support `key=value` or `key: value`. Metrics parse errors
+are recorded in diagnostics and do not block publication.

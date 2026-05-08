@@ -15,7 +15,7 @@ class LocalFileExperimentAdapter:
             "experiment_request_id": experiment_request["experiment_request_id"],
         }
 
-    def run(self, *, experiment_request: Dict[str, Any], budget_envelope: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, *, experiment_request: Dict[str, Any], budget_envelope: Dict[str, Any], **_: Any) -> Dict[str, Any]:
         return {
             "adapter_type": self.adapter_type,
             "title": experiment_request["title"],

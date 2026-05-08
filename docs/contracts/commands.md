@@ -27,7 +27,7 @@ Public workflow commands:
 - `approve_checkpoint`, `reject_checkpoint`: decide pending approvals and replay approved side effects.
 - `request_status`, `generate_report`: write durable Markdown report artifacts and index them.
 - `sync_knowledge_base`, `rebuild_graph`: compile knowledge and build local graph outputs, with degraded graph behavior when configured adapters are unavailable.
-- `run_experiment`, `review_experiment`: create experiment work through normal task admission and review produced evidence.
+- `run_experiment`, `review_experiment`: create experiment work through normal task admission and review produced evidence. `run_experiment` defaults to the local-file adapter; `adapter_type: "local_command"` enables argv-style local command execution only when `run_parameters.allow_command_execution` is true.
 
 Common interpretation examples:
 

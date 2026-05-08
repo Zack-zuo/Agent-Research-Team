@@ -1,3 +1,4 @@
 from research_agent_team.integrations.experiments.local_file import LocalFileExperimentAdapter
+from research_agent_team.integrations.experiments.local_command import LocalCommandExperimentAdapter
 
-__all__ = ["LocalFileExperimentAdapter"]
+__all__ = ["LocalCommandExperimentAdapter", "LocalFileExperimentAdapter"]

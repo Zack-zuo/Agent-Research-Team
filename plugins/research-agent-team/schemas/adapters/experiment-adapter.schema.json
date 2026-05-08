@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "adapter": {"type": "string"},
+    "adapter": {"type": "string", "enum": ["local_file", "local_command"]},
     "adapter_id": {"type": "string"},
     "mode": {"type": "string"},
     "enabled": {"type": "boolean"},

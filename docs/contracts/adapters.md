@@ -37,6 +37,9 @@ Experiment adapter behavior:
 
 - `run_experiment` creates normal task and experiment records before admission.
 - The local-file adapter prepares and publishes deterministic filesystem evidence.
+- The local-command adapter is opt-in. Select it with `adapter_type: "local_command"` or adapter config, and set `run_parameters.allow_command_execution: true`.
+- Local-command runs execute argv-style commands only, with a project-contained working directory, timeout, stdout/stderr logs, runtime metadata, git state/diffs, parsed metrics, and generated outputs saved under `experiments/runs/<experiment-run-id>/`.
+- Metrics files may be JSON objects or simple key-value text. Parse failures are recorded in result diagnostics and do not fail publication.
 - Disabled or unavailable experiment adapters fail before fabricating successful experiment output.
 
 Worker launch adapter behavior:

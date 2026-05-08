@@ -31,7 +31,7 @@ from research_agent_team.domain import (
     Task,
     TaskStatus,
 )
-from research_agent_team.integrations.experiments import LocalFileExperimentAdapter
+from research_agent_team.integrations.experiments import LocalCommandExperimentAdapter, LocalFileExperimentAdapter
 from research_agent_team.shared import new_id, now_utc
 from research_agent_team.storage import ProjectLayout, project_lock, read_json, write_json_atomic, write_text_atomic
 
@@ -162,19 +162,35 @@ def _write_experiment_health(layout: ProjectLayout, *, status: str, message: str
     write_json_atomic(layout.adapter_health, health)
 
 
-def _resolve_experiment_adapter(layout: ProjectLayout) -> LocalFileExperimentAdapter:
+ExperimentAdapter = LocalFileExperimentAdapter | LocalCommandExperimentAdapter
+
+
+def _adapter_type_from_payload(payload: Dict[str, Any], run_parameters: Dict[str, Any]) -> Optional[str]:
+    value = payload.get("adapter_type", run_parameters.get("adapter_type"))
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise CommandError("invalid_payload", "adapter_type must be a non-empty string when provided", field="adapter_type")
+    return value.strip()
+
+
+def _resolve_experiment_adapter(layout: ProjectLayout, adapter_name: Optional[str] = None) -> ExperimentAdapter:
     config = _read_adapter_config(layout)
     if config.get("enabled") is False:
         message = "Experiment adapter is disabled."
         _write_experiment_health(layout, status="degraded", message=message)
         raise CommandError("experiment_adapter_unavailable", message)
-    adapter_name = config.get("adapter", config.get("type", "local_file"))
-    if adapter_name != "local_file":
-        message = f"Experiment adapter is unavailable: {adapter_name}"
-        _write_experiment_health(layout, status="degraded", message=message)
-        raise CommandError("experiment_adapter_unavailable", message, adapter=adapter_name)
-    _write_experiment_health(layout, status="healthy", message="Local-file experiment adapter ready.")
-    return LocalFileExperimentAdapter()
+    selected_adapter = adapter_name or config.get("adapter", config.get("type", "local_file"))
+    settings = config.get("settings") if isinstance(config.get("settings"), dict) else {}
+    if selected_adapter == "local_file":
+        _write_experiment_health(layout, status="healthy", message="Local-file experiment adapter ready.")
+        return LocalFileExperimentAdapter()
+    if selected_adapter == "local_command":
+        _write_experiment_health(layout, status="healthy", message="Local command experiment adapter ready.")
+        return LocalCommandExperimentAdapter(settings=settings)
+    message = f"Experiment adapter is unavailable: {selected_adapter}"
+    _write_experiment_health(layout, status="degraded", message=message)
+    raise CommandError("experiment_adapter_unavailable", message, adapter=selected_adapter)
 
 
 def _build_task_description(payload: Dict[str, Any]) -> str:
@@ -197,6 +213,7 @@ def _experiment_run_summary(request: ExperimentRequest, run: ExperimentRun, task
         "experiment_run_id": run.experiment_run_id,
         "experiment_request_id": request.experiment_request_id,
         "status": run.status,
+        "adapter_type": run.adapter_type,
         "requester_slot_id": request.requester_slot_id,
         "executor_slot_id": request.executor_slot_id,
         "reviewer_slot_id": request.reviewer_slot_id,
@@ -237,6 +254,24 @@ def _approval_summary(approval: Dict[str, Any]) -> Dict[str, Any]:
         "reason": approval["reason"],
         "created_at": approval["created_at"],
     }
+
+
+def _adapter_artifact_descriptors(result_payload: Dict[str, Any]) -> List[Dict[str, str]]:
+    descriptors: List[Dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for descriptor in result_payload.get("artifact_descriptors") or []:
+        if not isinstance(descriptor, dict):
+            continue
+        path = descriptor.get("path")
+        artifact_type = descriptor.get("type")
+        if not isinstance(path, str) or not path.strip() or not isinstance(artifact_type, str) or not artifact_type.strip():
+            continue
+        key = (path.strip(), artifact_type.strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        descriptors.append({"path": key[0], "type": key[1]})
+    return descriptors
 
 
 def _select_default_executor(layout: ProjectLayout, requester: AgentSlot) -> str:
@@ -441,13 +476,20 @@ def publish_experiment_run_locked(layout: ProjectLayout, *, activation: AgentAct
     request, run = _experiment_pair_for_task(layout, task.task_id)
     if request is None or run is None:
         return []
-    adapter = _resolve_experiment_adapter(layout)
+    adapter = _resolve_experiment_adapter(layout, run.adapter_type)
     run_dir = layout.root / run.run_root
     outputs_dir = run_dir / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
 
     prepared_payload = adapter.prepare(task_id=task.task_id, bundle_id=activation.bundle_id, experiment_request=request.to_dict())
-    result_payload = adapter.run(experiment_request=request.to_dict(), budget_envelope=task.budget_envelope)
+    result_payload = adapter.run(
+        experiment_request=request.to_dict(),
+        budget_envelope=task.budget_envelope,
+        layout=layout,
+        run=run.to_dict(),
+        activation=activation.to_dict(),
+        task=task.to_dict(),
+    )
     publish_payload = adapter.publish(experiment_run_id=run.experiment_run_id, output_dir=str(run_dir))
 
     request_path = PurePosixPath(run.run_root) / "request.json"
@@ -468,6 +510,7 @@ def publish_experiment_run_locked(layout: ProjectLayout, *, activation: AgentAct
                 f"- Adapter: {adapter.adapter_type}",
                 f"- Objective: {request.objective}",
                 f"- Hypothesis: {request.hypothesis}",
+                f"- Command Status: {result_payload.get('command', {}).get('status', 'not_applicable')}",
                 "",
                 "## Run Parameters",
                 f"`{request.run_parameters}`",
@@ -498,6 +541,20 @@ def publish_experiment_run_locked(layout: ProjectLayout, *, activation: AgentAct
             layout,
             path=str(path),
             artifact_type=artifact_type,
+            visibility=ArtifactVisibility.PROJECT_SHARED,
+            producing_slot_id=request.executor_slot_id,
+            producing_activation_id=activation.activation_id,
+            task_id=task.task_id,
+            source_artifact_ids=list(request.input_artifact_ids),
+            created_at=timestamp,
+        )
+        published_artifact_ids.append(artifact["artifact_id"])
+
+    for descriptor in _adapter_artifact_descriptors(result_payload):
+        artifact = index_artifact(
+            layout,
+            path=descriptor["path"],
+            artifact_type=descriptor["type"],
             visibility=ArtifactVisibility.PROJECT_SHARED,
             producing_slot_id=request.executor_slot_id,
             producing_activation_id=activation.activation_id,
@@ -595,6 +652,7 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
     expected_output_types = _string_list(payload, "expected_output_types")
     compare_run_ids = _string_list(payload, "compare_run_ids")
     run_parameters = _object(payload, "run_parameters")
+    adapter_type = _adapter_type_from_payload(payload, run_parameters)
     budget_override = _budget_override(payload)
 
     with project_lock(layout.lock_path):
@@ -626,7 +684,10 @@ def run_experiment(payload: Dict[str, Any]) -> Dict[str, Any]:
         resolve_attached_artifacts(layout, requester_slot_id, executor_slot_id, input_artifact_ids)
         _validate_input_path_roots(layout, executor_slot_id, input_path_roots)
         _validate_compare_run_ids(layout, compare_run_ids, project.project_id)
-        adapter = _resolve_experiment_adapter(layout)
+        adapter = _resolve_experiment_adapter(layout, adapter_type)
+        validate_request = getattr(adapter, "validate_request", None)
+        if validate_request is not None:
+            validate_request(layout=layout, run_parameters=run_parameters)
         budget_envelope = _effective_budget_envelope(layout, executor, budget_override)
         if "experiment_runs" not in budget_override:
             current_experiment_runs = budget_envelope.get("experiment_runs")

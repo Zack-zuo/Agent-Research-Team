@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -65,6 +66,13 @@ class Stage6ExperimentWorkflowTests(unittest.TestCase):
     def artifact_index(self, project_root: Path) -> list[dict]:
         index_path = project_root / "state" / "artifacts" / "index.jsonl"
         return [json.loads(line) for line in index_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def publish_started_experiment(self, project_root: Path, started: dict) -> dict:
+        activation_id = started["result"]["launch_request"]["activation_id"]
+        self.assertTrue(self.run_activation("mark-running", project_root, activation_id)["ok"])
+        completed = self.run_activation("complete", project_root, activation_id, {"output_artifact_ids": []})
+        self.assertTrue(completed["ok"], completed)
+        return completed
 
     def run_and_publish_experiment(self, project_root: Path, **overrides: object) -> dict:
         payload = {
@@ -579,6 +587,349 @@ class Stage6ExperimentWorkflowTests(unittest.TestCase):
             self.assertTrue(opened["ok"], opened)
             stale_run = json.loads((stale_root / "state" / "experiments" / "runs" / f"{stale_run_id}.json").read_text())
             self.assertEqual(stale_run["status"], "interrupted")
+
+    def test_local_command_experiment_captures_logs_metrics_outputs_and_git_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            tracked = project_root / "shared" / "raw" / "tracked.txt"
+            tracked.write_text("before\n", encoding="utf-8")
+            self._git(project_root, "init")
+            self._git(project_root, "config", "user.email", "rat@example.test")
+            self._git(project_root, "config", "user.name", "RAT Test")
+            self._git(project_root, "add", ".")
+            self._git(project_root, "commit", "-m", "baseline")
+            command_code = "\n".join(
+                [
+                    "import json, os, pathlib, sys",
+                    "out = pathlib.Path(os.environ['RAT_EXPERIMENT_OUTPUT_DIR'])",
+                    "out.mkdir(parents=True, exist_ok=True)",
+                    "(out / 'generated.txt').write_text('generated evidence\\n', encoding='utf-8')",
+                    "pathlib.Path('metrics.json').write_text(json.dumps({'accuracy': 0.875, 'trials': 3}), encoding='utf-8')",
+                    "pathlib.Path('tracked.txt').write_text('after\\n', encoding='utf-8')",
+                    "print('command stdout line')",
+                    "print('command stderr line', file=sys.stderr)",
+                ]
+            )
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Local command success",
+                    "objective": "Run a real local command and collect evidence.",
+                    "hypothesis": "The command adapter records command evidence.",
+                    "method": "Execute an argv command in a constrained project working directory.",
+                    "success_criteria": ["Publish command logs, metrics, outputs, and git diff"],
+                    "input_path_roots": ["shared/raw"],
+                    "expected_output_types": ["json", "markdown", "logs"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "working_directory": "shared/raw",
+                        "timeout_seconds": 10,
+                        "command": [sys.executable, "-c", command_code],
+                        "metrics_files": ["metrics.json"],
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            run_state = json.loads((project_root / "state" / "experiments" / "runs" / f"{run_id}.json").read_text())
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(result["adapter_type"], "local_command")
+            self.assertEqual(result["command"]["status"], "succeeded")
+            self.assertEqual(result["command"]["exit_code"], 0)
+            self.assertGreaterEqual(result["command"]["duration_seconds"], 0)
+            self.assertEqual(result["metrics"], {"accuracy": 0.875, "trials": 3})
+            self.assertEqual(result["git"]["before"]["is_git_repository"], True)
+            self.assertEqual(result["git"]["after"]["is_dirty"], True)
+            self.assertIn("tracked.txt", result["git"]["diff_summary"])
+            self.assertEqual(result["diagnostics"], [])
+
+            run_root = project_root / "experiments" / "runs" / run_id
+            self.assertIn("command stdout line", (run_root / "logs" / "stdout.log").read_text(encoding="utf-8"))
+            self.assertIn("command stderr line", (run_root / "logs" / "stderr.log").read_text(encoding="utf-8"))
+            self.assertEqual((run_root / "outputs" / "generated" / "generated.txt").read_text(encoding="utf-8"), "generated evidence\n")
+            self.assertIn("after", (run_root / "git" / "diff.patch").read_text(encoding="utf-8"))
+
+            indexed = [artifact for artifact in self.artifact_index(project_root) if artifact["artifact_id"] in run_state["published_artifact_ids"]]
+            indexed_types = {artifact["type"] for artifact in indexed}
+            self.assertIn("experiment_stdout_log", indexed_types)
+            self.assertIn("experiment_stderr_log", indexed_types)
+            self.assertIn("experiment_metrics", indexed_types)
+            self.assertIn("experiment_generated_output", indexed_types)
+            self.assertIn("experiment_git_diff", indexed_types)
+
+    def test_local_command_experiment_records_failed_exit_without_activation_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            command_code = "import sys; print('before failure'); print('bad path', file=sys.stderr); raise SystemExit(3)"
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Local command failure",
+                    "objective": "Record a non-zero command exit.",
+                    "hypothesis": "Failed commands produce reviewable evidence.",
+                    "method": "Run a command that exits non-zero.",
+                    "success_criteria": ["Publish failed command evidence"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "command": [sys.executable, "-c", command_code],
+                        "timeout_seconds": 10,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            run_state = json.loads((project_root / "state" / "experiments" / "runs" / f"{run_id}.json").read_text())
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(run_state["status"], "awaiting_review")
+            self.assertEqual(result["command"]["status"], "failed")
+            self.assertEqual(result["command"]["exit_code"], 3)
+            self.assertIn("bad path", (project_root / "experiments" / "runs" / run_id / "logs" / "stderr.log").read_text(encoding="utf-8"))
+
+    def test_local_command_experiment_records_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            command_code = "import time; print('starting timeout', flush=True); time.sleep(3)"
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Local command timeout",
+                    "objective": "Record timeout behavior.",
+                    "hypothesis": "Timed out commands produce diagnostics.",
+                    "method": "Run a command past its timeout.",
+                    "success_criteria": ["Publish timeout evidence"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "command": [sys.executable, "-c", command_code],
+                        "timeout_seconds": 1,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(result["command"]["status"], "timed_out")
+            self.assertIsNone(result["command"]["exit_code"])
+            self.assertTrue(any(diagnostic["code"] == "command_timeout" for diagnostic in result["diagnostics"]))
+
+    def test_local_command_experiment_keeps_metrics_parse_failures_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            command_code = "from pathlib import Path; Path('metrics.txt').write_text('not a metric line\\n', encoding='utf-8')"
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Bad metrics",
+                    "objective": "Keep metrics parse failures visible but non-fatal.",
+                    "hypothesis": "The run can still publish evidence.",
+                    "method": "Write an invalid key-value metrics file.",
+                    "success_criteria": ["Publish diagnostics"],
+                    "input_path_roots": ["shared/raw"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "working_directory": "shared/raw",
+                        "command": [sys.executable, "-c", command_code],
+                        "metrics_files": ["metrics.txt"],
+                        "timeout_seconds": 10,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(result["command"]["status"], "succeeded")
+            self.assertEqual(result["metrics"], {})
+            self.assertTrue(any(diagnostic["code"] == "metrics_parse_failed" for diagnostic in result["diagnostics"]))
+
+    def test_local_command_experiment_requires_explicit_execution_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Unsafe command",
+                    "objective": "Reject command execution without explicit opt in.",
+                    "method": "Attempt to run a command without allow_command_execution.",
+                    "success_criteria": ["Do not create canonical experiment work"],
+                    "run_parameters": {"command": [sys.executable, "-c", "print('nope')"]},
+                },
+                check=False,
+            )
+
+            self.assertFalse(started["ok"], started)
+            self.assertEqual(started["error"]["code"], "experiment_command_not_allowed")
+            self.assertEqual(list((project_root / "state" / "tasks").glob("*.json")), [])
+
+    def test_local_command_experiment_records_missing_executable_as_reviewable_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Missing executable",
+                    "objective": "Record command launch failures as experiment evidence.",
+                    "method": "Run a command whose executable is missing.",
+                    "success_criteria": ["Publish launch failure diagnostics"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "command": ["rat-missing-executable-for-test"],
+                        "timeout_seconds": 10,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            run_state = json.loads((project_root / "state" / "experiments" / "runs" / f"{run_id}.json").read_text())
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(run_state["status"], "awaiting_review")
+            self.assertEqual(result["command"]["status"], "failed")
+            self.assertIsNone(result["command"]["exit_code"])
+            self.assertTrue(any(diagnostic["code"] == "command_launch_failed" for diagnostic in result["diagnostics"]))
+
+    def test_local_command_experiment_captures_staged_git_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            tracked = project_root / "shared" / "raw" / "tracked.txt"
+            tracked.write_text("before\n", encoding="utf-8")
+            self._git(project_root, "init")
+            self._git(project_root, "config", "user.email", "rat@example.test")
+            self._git(project_root, "config", "user.name", "RAT Test")
+            self._git(project_root, "add", ".")
+            self._git(project_root, "commit", "-m", "baseline")
+            command_code = "\n".join(
+                [
+                    "import pathlib, subprocess",
+                    "pathlib.Path('tracked.txt').write_text('after staged\\n', encoding='utf-8')",
+                    "subprocess.run(['git', 'add', 'tracked.txt'], check=True)",
+                ]
+            )
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Staged git diff",
+                    "objective": "Capture staged changes in git diff evidence.",
+                    "method": "Modify and stage a tracked file.",
+                    "success_criteria": ["Publish staged git diff"],
+                    "input_path_roots": ["shared/raw"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "working_directory": "shared/raw",
+                        "command": [sys.executable, "-c", command_code],
+                        "timeout_seconds": 10,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertIn("tracked.txt", result["git"]["diff_summary"])
+            self.assertIn("after staged", (project_root / "experiments" / "runs" / run_id / "git" / "diff.patch").read_text(encoding="utf-8"))
+
+    def test_local_command_experiment_keeps_binary_metrics_decode_failures_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir) / "rat-project"
+            self.create_project_with_junior(project_root)
+            command_code = "from pathlib import Path; Path('metrics.json').write_bytes(b'\\xff\\xfe')"
+
+            started = self.run_command(
+                "run_experiment",
+                {
+                    "root_path": str(project_root),
+                    "requester_slot_id": "senior-01",
+                    "executor_slot_id": "junior-01",
+                    "adapter_type": "local_command",
+                    "title": "Binary metrics",
+                    "objective": "Keep binary metrics files non-fatal.",
+                    "method": "Write an invalid UTF-8 metrics file.",
+                    "success_criteria": ["Publish metrics decode diagnostic"],
+                    "input_path_roots": ["shared/raw"],
+                    "run_parameters": {
+                        "allow_command_execution": True,
+                        "working_directory": "shared/raw",
+                        "command": [sys.executable, "-c", command_code],
+                        "metrics_files": ["metrics.json"],
+                        "timeout_seconds": 10,
+                    },
+                },
+            )
+            self.assertTrue(started["ok"], started)
+            run_id = started["result"]["experiment_run"]["experiment_run_id"]
+            self.publish_started_experiment(project_root, started)
+
+            run_state = json.loads((project_root / "state" / "experiments" / "runs" / f"{run_id}.json").read_text())
+            result = json.loads((project_root / "experiments" / "runs" / run_id / "outputs" / "result.json").read_text())
+            self.assertEqual(run_state["status"], "awaiting_review")
+            self.assertEqual(result["metrics"], {})
+            self.assertTrue(any(diagnostic["code"] == "metrics_parse_failed" for diagnostic in result["diagnostics"]))
+
+    def _git(self, project_root: Path, *args: str) -> None:
+        env = os.environ.copy()
+        env.setdefault("GIT_AUTHOR_NAME", "RAT Test")
+        env.setdefault("GIT_AUTHOR_EMAIL", "rat@example.test")
+        env.setdefault("GIT_COMMITTER_NAME", "RAT Test")
+        env.setdefault("GIT_COMMITTER_EMAIL", "rat@example.test")
+        result = subprocess.run(
+            ["git", "-C", str(project_root), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+        if result.returncode != 0:
+            self.fail(f"git {' '.join(args)} failed\nstdout={result.stdout}\nstderr={result.stderr}")
 
 
 if __name__ == "__main__":
